@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 export default function Home() {
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState<any[]>([]);
   const [screen, setScreen] = useState("menu"); // "menu" | "cart" | "success"
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
