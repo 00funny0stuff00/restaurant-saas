@@ -16,7 +16,7 @@ export default function Home() {
     { name: "Cold Coffee", price: 119, category: "Drinks", emoji: "☕" },
   ];
 
-  const addToCart = (item) => {
+  const addToCart = (item: any) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === item.name);
       if (existing) return prev.map((i) => i.name === item.name ? { ...i, qty: i.qty + 1 } : i);
