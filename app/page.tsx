@@ -24,7 +24,7 @@ export default function Home() {
     });
   };
 
-  const removeFromCart = (name) => {
+  const removeFromCart = (name: any) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === name);
       if (existing.qty === 1) return prev.filter((i) => i.name !== name);
