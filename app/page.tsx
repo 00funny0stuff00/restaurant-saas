@@ -1,21 +1,28 @@
 // @ts-nocheck
+// @ts-nocheck
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 
 export default function Home() {
   const [cart, setCart] = useState<any[]>([]);
-  const [screen, setScreen] = useState("menu"); // "menu" | "cart" | "success"
+  const [screen, setScreen] = useState("menu");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const items = [
-    { name: "Chicken Burger", price: 199, category: "Burgers", emoji: "🍔" },
-    { name: "Veg Burger", price: 149, category: "Burgers", emoji: "🥬" },
-    { name: "Masala Fries", price: 99, category: "Sides", emoji: "🍟" },
-    { name: "Paneer Wrap", price: 179, category: "Wraps", emoji: "🌯" },
-    { name: "Mango Shake", price: 129, category: "Drinks", emoji: "🥭" },
-    { name: "Cold Coffee", price: 119, category: "Drinks", emoji: "☕" },
-  ];
+  useEffect(() => {
+    async function loadMenu() {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("in_stock", true);
+      if (data) setItems(data);
+      setLoading(false);
+    }
+    loadMenu();
+  }, []);
 
   const addToCart = (item: any) => {
     setCart((prev) => {
@@ -57,6 +64,7 @@ export default function Home() {
     input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 15, marginBottom: 12, boxSizing: "border-box" },
     orderBtn: { width: "100%", padding: 14, background: "#ff4d00", color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" },
     backBtn: { background: "none", border: "none", color: "#ff4d00", fontSize: 15, cursor: "pointer", marginBottom: 16, padding: 0 },
+    photo: { width: 56, height: 56, borderRadius: 8, objectFit: "cover" },
   };
 
   if (screen === "success") return (
@@ -77,11 +85,10 @@ export default function Home() {
     <main style={s.wrap}>
       <button style={s.backBtn} onClick={() => setScreen("menu")}>← Back to menu</button>
       <h2 style={s.heading}>Your order</h2>
-
       {cart.map((item) => (
         <div key={item.name} style={s.card}>
           <div style={s.left}>
-            <span style={{ fontSize: 32 }}>{item.emoji}</span>
+            {item.photo_url && <img src={item.photo_url} style={s.photo} alt={item.name} />}
             <div>
               <p style={s.itemName}>{item.name}</p>
               <p style={s.itemCat}>₹{item.price} each</p>
@@ -97,14 +104,12 @@ export default function Home() {
           </div>
         </div>
       ))}
-
       <div style={{ borderTop: "2px dashed #eee", paddingTop: 16, marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18 }}>
           <span>Total</span>
           <span>₹{total}</span>
         </div>
       </div>
-
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <button style={s.orderBtn} onClick={placeOrder}>Place order →</button>
@@ -115,34 +120,36 @@ export default function Home() {
     <main style={{ ...s.wrap, paddingBottom: 80 }}>
       <h1 style={s.heading}>🍽️ Vishal's Kitchen</h1>
       <p style={s.sub}>Fresh food, fast delivery</p>
-
-      {items.map((item) => {
-        const inCart = cart.find((i) => i.name === item.name);
-        return (
-          <div key={item.name} style={s.card}>
-            <div style={s.left}>
-              <span style={{ fontSize: 36 }}>{item.emoji}</span>
-              <div>
-                <p style={s.itemName}>{item.name}</p>
-                <p style={s.itemCat}>{item.category}</p>
+      {loading ? (
+        <p style={{ color: "#888", textAlign: "center", marginTop: 40 }}>Loading menu...</p>
+      ) : (
+        items.map((item) => {
+          const inCart = cart.find((i) => i.name === item.name);
+          return (
+            <div key={item.name} style={s.card}>
+              <div style={s.left}>
+                {item.photo_url && <img src={item.photo_url} style={s.photo} alt={item.name} />}
+                <div>
+                  <p style={s.itemName}>{item.name}</p>
+                  <p style={s.itemCat}>{item.category}</p>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={s.price}>₹{item.price}</p>
+                {inCart ? (
+                  <div style={s.qtyRow}>
+                    <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
+                    <span style={{ fontWeight: 600 }}>{inCart.qty}</span>
+                    <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
+                  </div>
+                ) : (
+                  <button style={s.addBtn} onClick={() => addToCart(item)}>Add</button>
+                )}
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={s.price}>₹{item.price}</p>
-              {inCart ? (
-                <div style={s.qtyRow}>
-                  <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
-                  <span style={{ fontWeight: 600 }}>{inCart.qty}</span>
-                  <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
-                </div>
-              ) : (
-                <button style={s.addBtn} onClick={() => addToCart(item)}>Add</button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-
+          );
+        })
+      )}
       {cartCount > 0 && (
         <button style={s.cartBar} onClick={() => setScreen("cart")}>
           View order · {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{total}
