@@ -3,6 +3,15 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 
+function lighten(hex, amount = 0.88) {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = (num >> 16) & 0xff;
+  const g = (num >> 8) & 0xff;
+  const b = num & 0xff;
+  const blend = (c) => Math.round(c + (255 - c) * amount);
+  return `rgb(${blend(r)}, ${blend(g)}, ${blend(b)})`;
+}
+
 export default function RestaurantPage() {
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
   const [cart, setCart] = useState([]);
@@ -12,34 +21,27 @@ export default function RestaurantPage() {
   const [items, setItems] = useState([]);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState(null);
 
   useEffect(() => {
     async function loadData() {
       const { data: tenantData } = await supabase
-        .from("tenants")
-        .select("*")
-        .eq("slug", slug)
-        .single();
-
-      if (!tenantData) {
-        setLoading(false);
-        return;
-      }
+        .from("tenants").select("*").eq("slug", slug).single();
+      if (!tenantData) { setLoading(false); return; }
       setTenant(tenantData);
-
       const { data: menuData } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("tenant_slug", slug)
-        .eq("in_stock", true);
-
-      if (menuData) setItems(menuData);
+        .from("menu_items").select("*")
+        .eq("tenant_slug", slug).eq("in_stock", true);
+      if (menuData) {
+        setItems(menuData);
+        setActiveCategory([...new Set(menuData.map(i => i.category))][0]);
+      }
       setLoading(false);
     }
     loadData();
   }, [slug]);
 
-  const addToCart = (item: any) => {
+  const addToCart = (item) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === item.name);
       if (existing) return prev.map((i) => i.name === item.name ? { ...i, qty: i.qty + 1 } : i);
@@ -47,11 +49,11 @@ export default function RestaurantPage() {
     });
   };
 
-  const removeFromCart = (name: any) => {
+  const removeFromCart = (itemName) => {
     setCart((prev) => {
-      const existing = prev.find((i) => i.name === name);
-      if (existing.qty === 1) return prev.filter((i) => i.name !== name);
-      return prev.map((i) => i.name === name ? { ...i, qty: i.qty - 1 } : i);
+      const existing = prev.find((i) => i.name === itemName);
+      if (existing.qty === 1) return prev.filter((i) => i.name !== itemName);
+      return prev.map((i) => i.name === itemName ? { ...i, qty: i.qty - 1 } : i);
     });
   };
 
@@ -61,60 +63,79 @@ export default function RestaurantPage() {
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
-    const { error } = await supabase
-      .from("orders")
-      .insert([{
-        customer_name: name,
-        phone: phone,
-        items: itemsSummary,
-        total: total,
-        status: "new",
-        tenant_slug: slug
-      }]);
+    const { error } = await supabase.from("orders").insert([{
+      customer_name: name, phone, items: itemsSummary,
+      total, status: "new", tenant_slug: slug
+    }]);
     if (error) { alert("Something went wrong."); return; }
     setScreen("success");
   };
 
-  const color = tenant?.primary_color || "#ff4d00";
+  if (loading) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
+      <p style={{ color: "#888" }}>Loading...</p>
+    </div>
+  );
+
+  if (!tenant) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
+      <p>Restaurant not found.</p>
+    </div>
+  );
+  
+  const primary = tenant.primary_colour??"#ff4d00"
+  const secondary = tenant.secondary_color || lighten(primary,0.88);
+  const categories = [...new Set(items.map(i => i.category))];
+  const filteredItems = items.filter(i => i.category === activeCategory);
 
   const s = {
-    wrap: { maxWidth: 480, margin: "0 auto", padding: "20px 16px", fontFamily: "sans-serif" },
-    heading: { fontSize: 24, fontWeight: 700, marginBottom: 4 },
-    sub: { color: "#888", marginBottom: 24 },
-    card: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16, border: "1px solid #eee", borderRadius: 12, marginBottom: 12 },
-    left: { display: "flex", gap: 12, alignItems: "center" },
-    itemName: { fontWeight: 600, margin: 0 },
-    itemCat: { color: "#888", fontSize: 13, margin: 0 },
-    price: { fontWeight: 700, margin: 0, textAlign: "right" },
-    addBtn: { marginTop: 6, background: color, color: "white", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 13 },
-    qtyRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 6 },
-    qtyBtn: { width: 26, height: 26, borderRadius: "50%", border: "1px solid #ddd", background: "white", cursor: "pointer", fontSize: 16 },
-    cartBar: { position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: color, color: "white", padding: "14px 32px", borderRadius: 50, cursor: "pointer", fontWeight: 600, fontSize: 15, border: "none", boxShadow: `0 4px 20px ${color}66`, whiteSpace: "nowrap" },
-    input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 15, marginBottom: 12, boxSizing: "border-box" },
-    orderBtn: { width: "100%", padding: 14, background: color, color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" },
-    backBtn: { background: "none", border: "none", color: color, fontSize: 15, cursor: "pointer", marginBottom: 16, padding: 0 },
-    photo: { width: 56, height: 56, borderRadius: 8, objectFit: "cover" },
+    page: { fontFamily: "sans-serif", maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" },
+    header: { padding: "16px 16px 12px", borderBottom: `2px solid ${secondary}`, background: "white", position: "sticky", top: 0, zIndex: 10 },
+    restaurantName: { fontSize: 18, fontWeight: 700, margin: 0, color: "#111" },
+    tagline: { fontSize: 12, color: "#888", margin: "2px 0 0" },
+    body: { display: "flex", flex: 1 },
+    sidebar: { width: 90, borderRight: `1px solid ${secondary}`, flexShrink: 0 },
+    catBtn: (active) => ({
+      width: "100%", padding: "12px 6px", border: "none",
+      background: active ? secondary : "white",
+      borderLeft: active ? `3px solid ${primary}` : "3px solid transparent",
+      cursor: "pointer", fontSize: 11, fontWeight: active ? 700 : 400,
+      color: active ? primary : "#555", textAlign: "center", lineHeight: 1.3,
+    }),
+    itemsCol: { flex: 1, padding: "12px 12px 100px" },
+    card: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 10px", border: `1px solid ${secondary}`, borderRadius: 12, marginBottom: 10 },
+    left: { display: "flex", gap: 10, alignItems: "center" },
+    photo: { width: 52, height: 52, borderRadius: 8, objectFit: "cover", background: secondary, flexShrink: 0 },
+    itemName: { fontWeight: 600, margin: 0, fontSize: 14, color: "#111" },
+    itemCat: { color: "#888", fontSize: 12, margin: "2px 0 0" },
+    price: { fontWeight: 700, margin: 0, fontSize: 14, color: "#111", textAlign: "right" },
+    addBtn: { marginTop: 6, background: primary, color: "white", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 },
+    qtyRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 6 },
+    qtyBtn: { width: 24, height: 24, borderRadius: "50%", border: `1px solid ${primary}`, background: "white", cursor: "pointer", fontSize: 14, color: primary, fontWeight: 700 },
+    cartBar: { position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", background: primary, color: "white", padding: "13px 28px", borderRadius: 50, cursor: "pointer", fontWeight: 700, fontSize: 14, border: "none", whiteSpace: "nowrap", zIndex: 20 },
+    input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${secondary}`, fontSize: 15, marginBottom: 12, boxSizing: "border-box" },
+    orderBtn: { width: "100%", padding: 14, background: primary, color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" },
+    backBtn: { background: "none", border: "none", color: primary, fontSize: 15, cursor: "pointer", marginBottom: 16, padding: 0, fontWeight: 600 },
   };
 
-  if (loading) return <main style={s.wrap}><p style={{ color: "#888", textAlign: "center", marginTop: 60 }}>Loading...</p></main>;
-  if (!tenant) return <main style={s.wrap}><p style={{ textAlign: "center", marginTop: 60 }}>Restaurant not found.</p></main>;
-
   if (screen === "success") return (
-    <main style={s.wrap}>
-      <div style={{ textAlign: "center", paddingTop: 60 }}>
+    <div style={{ ...s.page, justifyContent: "center", alignItems: "center", padding: 24 }}>
+      <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 64 }}>✅</div>
-        <h2 style={{ fontSize: 24, fontWeight: 700, marginTop: 16 }}>Order placed!</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginTop: 16 }}>Order placed!</h2>
         <p style={{ color: "#888" }}>Thanks {name}, we'll have it ready soon.</p>
-        <p style={{ fontWeight: 600, fontSize: 18 }}>Total: ₹{total}</p>
-        <button style={{ ...s.orderBtn, marginTop: 24 }} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); }}>Order again</button>
+        <p style={{ fontWeight: 700, fontSize: 18, color: primary }}>₹{total}</p>
+        <button style={{ ...s.orderBtn, marginTop: 24 }} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); }}>
+          Order again
+        </button>
       </div>
-    </main>
+    </div>
   );
 
   if (screen === "cart") return (
-    <main style={s.wrap}>
+    <div style={{ ...s.page, padding: 16 }}>
       <button style={s.backBtn} onClick={() => setScreen("menu")}>← Back to menu</button>
-      <h2 style={s.heading}>Your order</h2>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Your order</h2>
       {cart.map((item) => (
         <div key={item.name} style={s.card}>
           <div style={s.left}>
@@ -128,58 +149,85 @@ export default function RestaurantPage() {
             <p style={s.price}>₹{item.price * item.qty}</p>
             <div style={s.qtyRow}>
               <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
-              <span style={{ fontWeight: 600 }}>{item.qty}</span>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{item.qty}</span>
               <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
             </div>
           </div>
         </div>
       ))}
-      <div style={{ borderTop: "2px dashed #eee", paddingTop: 16, marginBottom: 24 }}>
+      <div style={{ borderTop: `2px dashed ${secondary}`, paddingTop: 16, marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18 }}>
-          <span>Total</span><span>₹{total}</span>
+          <span>Total</span><span style={{ color: primary }}>₹{total}</span>
         </div>
       </div>
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <button style={s.orderBtn} onClick={placeOrder}>Place order →</button>
-    </main>
+    </div>
   );
 
   return (
-    <main style={{ ...s.wrap, paddingBottom: 80 }}>
-      <h1 style={s.heading}>{tenant.name}</h1>
-      <p style={s.sub}>{tenant.tagline}</p>
-      {items.map((item) => {
-        const inCart = cart.find((i) => i.name === item.name);
-        return (
-          <div key={item.name} style={s.card}>
-            <div style={s.left}>
-              {item.photo_url && <img src={item.photo_url} style={s.photo} alt={item.name} />}
-              <div>
-                <p style={s.itemName}>{item.name}</p>
-                <p style={s.itemCat}>{item.category}</p>
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={s.price}>₹{item.price}</p>
-              {inCart ? (
-                <div style={s.qtyRow}>
-                  <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
-                  <span style={{ fontWeight: 600 }}>{inCart.qty}</span>
-                  <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
-                </div>
-              ) : (
-                <button style={s.addBtn} onClick={() => addToCart(item)}>Add</button>
-              )}
-            </div>
+    <div style={s.page}>
+      <div style={s.header}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={s.restaurantName}>{tenant.name}</p>
+            <p style={s.tagline}>{tenant.tagline}</p>
           </div>
-        );
-      })}
+          {cartCount > 0 && (
+            <div style={{ background: primary, color: "white", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }} onClick={() => setScreen("cart")}>
+              🛒 {cartCount}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={s.body}>
+        <div style={s.sidebar}>
+          {categories.map((cat) => (
+            <button key={cat} style={s.catBtn(cat === activeCategory)} onClick={() => setActiveCategory(cat)}>
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div style={s.itemsCol}>
+          {filteredItems.map((item) => {
+            const inCart = cart.find((i) => i.name === item.name);
+            return (
+              <div key={item.name} style={s.card}>
+                <div style={s.left}>
+                  {item.photo_url
+                    ? <img src={item.photo_url} style={s.photo} alt={item.name} />
+                    : <div style={{ ...s.photo, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🍽️</div>
+                  }
+                  <div>
+                    <p style={s.itemName}>{item.name}</p>
+                    <p style={s.itemCat}>{item.category}</p>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <p style={s.price}>₹{item.price}</p>
+                  {inCart ? (
+                    <div style={s.qtyRow}>
+                      <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{inCart.qty}</span>
+                      <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
+                    </div>
+                  ) : (
+                    <button style={s.addBtn} onClick={() => addToCart(item)}>Add</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {cartCount > 0 && (
         <button style={s.cartBar} onClick={() => setScreen("cart")}>
           View order · {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{total}
         </button>
       )}
-    </main>
+    </div>
   );
 }
