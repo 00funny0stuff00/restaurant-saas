@@ -43,8 +43,27 @@ export default function Home() {
   const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
+    
+    const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
+    
+    const { error } = await supabase
+      .from("orders")
+      .insert([{
+        customer_name: name,
+        phone: phone,
+        items: itemsSummary,
+        total: total,
+        status: "new"
+      }]);
+
+    if (error) {
+      alert("Something went wrong. Please try again.");
+      console.error(error);
+      return;
+    }
+
     setScreen("success");
   };
 
