@@ -103,7 +103,7 @@ export default function RestaurantPage() {
     </div>
   );
   
-  const primary = tenant.primary_colour??"#ff4d00"
+  const primary = tenant.primary_color??"#ff4d00"
   const secondary = tenant.secondary_color ?? lighten(primary,0.88);
   const categories = [...new Set(items.map(i => i.category))];
   const filteredItems = items.filter(i => i.category === activeCategory);
