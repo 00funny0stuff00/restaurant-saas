@@ -94,7 +94,7 @@ export default function RestaurantPage() {
   const filteredItems = items.filter(i => i.category === activeCategory);
 
   const s = {
-    page: { fontFamily: "sans-serif", maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" },
+    page: { fontFamily: "sans-serif", maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", background: "white", color: "#111" },
     header: { padding: "16px 16px 12px", borderBottom: `2px solid ${secondary}`, background: "white", position: "sticky", top: 0, zIndex: 10 },
     restaurantName: { fontSize: 18, fontWeight: 700, margin: 0, color: "#111" },
     tagline: { fontSize: 12, color: "#888", margin: "2px 0 0" },
@@ -108,10 +108,10 @@ export default function RestaurantPage() {
       color: active ? primary : "#555", textAlign: "center", lineHeight: 1.3,
     }),
     itemsCol: { flex: 1, padding: "12px 12px 100px" },
-    card: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 10px", border: `1px solid ${secondary}`, borderRadius: 12, marginBottom: 10 },
-    left: { display: "flex", gap: 10, alignItems: "center" },
+    card: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 10px", border: `1px solid ${secondary}`, borderRadius: 12, marginBottom: 10, overflow: "hidden" },
+    left: { display: "flex", gap: 10, alignItems: "center", minWidth: 0, flex: 1, overflow: "hidden" },
     photo: { width: 52, height: 52, borderRadius: 8, objectFit: "cover", background: secondary, flexShrink: 0 },
-    itemName: { fontWeight: 600, margin: 0, fontSize: 14, color: "#111" },
+    itemName: { fontWeight: 600, margin: 0, fontSize: 14, color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
     itemCat: { color: "#888", fontSize: 12, margin: "2px 0 0" },
     price: { fontWeight: 700, margin: 0, fontSize: 14, color: "#111", textAlign: "right" },
     addBtn: { marginTop: 6, background: primary, color: "white", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 },
