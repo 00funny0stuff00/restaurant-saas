@@ -39,8 +39,16 @@ export default function RestaurantPage() {
       setLoading(false);
     }
     loadData();
-    const interval = setInterval(loadData, 8000);
-    return () => clearInterval(interval);
+    async function refreshMenu() {
+      const { data: menuData } = await supabase
+        .from("menu_items").select("*")
+        .eq("tenant_slug", slug).eq("in_stock", true);
+      if (menuData) setItems(menuData);
+    }
+
+    const menuInterval = setInterval(refreshMenu, 8000);
+    const pageInterval = setInterval(loadData, 300000);
+    return () => { clearInterval(menuInterval); clearInterval(pageInterval); };
   }, [slug]);
 
   const addToCart = (item) => {
