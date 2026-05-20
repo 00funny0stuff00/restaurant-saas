@@ -13,18 +13,13 @@ export default function OrderTracking() {
   const [loading, setLoading] = useState(true);
 
   async function loadOrder() {
-    const { data } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .single();
+    const { data } = await supabase.from("orders").select("*").eq("id", orderId).single();
     if (data) setOrder(data);
   }
 
   useEffect(() => {
     async function init() {
-      const { data: tenantData } = await supabase
-        .from("tenants").select("*").eq("slug", slug).single();
+      const { data: tenantData } = await supabase.from("tenants").select("*").eq("slug", slug).single();
       if (tenantData) setTenant(tenantData);
       await loadOrder();
       setLoading(false);
@@ -57,7 +52,7 @@ export default function OrderTracking() {
   const currentStep = steps.findIndex(s => s.key === order.status);
 
   const s = {
-    wrap: { maxWidth: 420, margin: "0 auto", padding: "32px 16px", fontFamily: "sans-serif", minHeight: "100vh" },
+    wrap: { maxWidth: 420, margin: "0 auto", padding: "32px 16px", fontFamily: "sans-serif", minHeight: "100vh", background: "white", color: "#111" },
     header: { textAlign: "center", marginBottom: 32 },
     restaurantName: { fontSize: 14, color: "#888", margin: "0 0 8px" },
     tokenBox: { background: primary, color: "white", borderRadius: 16, padding: "20px 32px", display: "inline-block", marginBottom: 8 },
@@ -121,6 +116,10 @@ export default function OrderTracking() {
         <p style={s.orderItems}>{order.items}</p>
         <p style={s.orderTotal}>Total: ₹{order.total}</p>
       </div>
+
+      <a href={`/${slug}`} style={{ display: "block", textAlign: "center", marginTop: 16, padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14 }}>
+        ← Back to menu
+      </a>
 
       <p style={s.refreshNote}>Page refreshes automatically every 6 seconds</p>
     </div>

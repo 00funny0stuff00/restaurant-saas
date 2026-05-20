@@ -22,6 +22,8 @@ export default function RestaurantPage() {
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState(null);
+  const [trackId, setTrackId] = useState("");
+  const [orderNumber, setOrderNumber] = useState(null);
 
   useEffect(() => {
     async function loadData() {
@@ -77,19 +79,14 @@ export default function RestaurantPage() {
   const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
-  const [orderNumber, setOrderNumber] = useState(null);
-
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(phone)) return alert("Please enter a valid 10-digit Indian mobile number");
 
-   // Re-check stock for all cart items
     const cartIds = cart.map(i => i.id);
     const { data: freshItems } = await supabase
-      .from("menu_items")
-      .select("id, name, in_stock")
-      .in("id", cartIds);
+      .from("menu_items").select("id, name, in_stock").in("id", cartIds);
 
     const outOfStock = freshItems?.filter(i => !i.in_stock) ?? [];
     if (outOfStock.length > 0) {
@@ -99,16 +96,16 @@ export default function RestaurantPage() {
       return;
     }
 
-     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
-     const { data, error } = await supabase.from("orders").insert([{
-        customer_name: name, phone, items: itemsSummary,
-       total, status: "new", tenant_slug: slug
-     }]).select().single();
+    const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
+    const { data, error } = await supabase.from("orders").insert([{
+      customer_name: name, phone, items: itemsSummary,
+      total, status: "new", tenant_slug: slug
+    }]).select().single();
 
     if (error) { alert("Something went wrong."); return; }
-     setOrderNumber(data.id);
-     setScreen("success");
-    };
+    setOrderNumber(data.id);
+    setScreen("success");
+  };
 
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
@@ -121,9 +118,9 @@ export default function RestaurantPage() {
       <p>Restaurant not found.</p>
     </div>
   );
-  
-  const primary = tenant.primary_color??"#ff4d00"
-  const secondary = tenant.secondary_color ?? lighten(primary,0.88);
+
+  const primary = tenant.primary_color ?? "#ff4d00";
+  const secondary = tenant.secondary_color ?? lighten(primary, 0.88);
   const categories = [...new Set(items.map(i => i.category))];
   const filteredItems = items.filter(i => i.category === activeCategory);
 
@@ -179,6 +176,18 @@ export default function RestaurantPage() {
     </div>
   );
 
+  if (screen === "track") return (
+    <div style={{ ...s.page, padding: 16 }}>
+      <button style={s.backBtn} onClick={() => setScreen("menu")}>← Back to menu</button>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Track your order</h2>
+      <p style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>Enter your token number to see your order status.</p>
+      <input style={s.input} placeholder="Token number (e.g. 42)" type="number" value={trackId} onChange={e => setTrackId(e.target.value)} />
+      <button style={s.orderBtn} onClick={() => { if (!trackId) return alert("Please enter a token number"); window.location.href = `/${slug}/order/${trackId}`; }}>
+        Track →
+      </button>
+    </div>
+  );
+
   if (screen === "cart") return (
     <div style={{ ...s.page, padding: 16 }}>
       <button style={s.backBtn} onClick={() => setScreen("menu")}>← Back to menu</button>
@@ -221,11 +230,16 @@ export default function RestaurantPage() {
             <p style={s.restaurantName}>{tenant.name}</p>
             <p style={s.tagline}>{tenant.tagline}</p>
           </div>
-          {cartCount > 0 && (
-            <div style={{ background: primary, color: "white", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }} onClick={() => setScreen("cart")}>
-              🛒 {cartCount}
-            </div>
-          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button style={{ background: "none", border: `1px solid ${primary}`, color: primary, borderRadius: 20, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }} onClick={() => setScreen("track")}>
+              Track
+            </button>
+            {cartCount > 0 && (
+              <div style={{ background: primary, color: "white", borderRadius: 20, padding: "4px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }} onClick={() => setScreen("cart")}>
+                🛒 {cartCount}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
