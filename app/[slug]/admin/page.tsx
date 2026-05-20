@@ -5,14 +5,15 @@ import { supabase } from "../../supabase";
 
 export default function AdminPage() {
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
-  const [authed, setAuthed] = useState(false);
-  const [pin, setPin] = useState("");
+  const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("menu");
   const [filterDate, setFilterDate] = useState("");
+  const [authError, setAuthError] = useState(null);
 
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
@@ -24,53 +25,78 @@ export default function AdminPage() {
   const [newPhoto, setNewPhoto] = useState("");
 
   useEffect(() => {
-    if (!authed) return;
-    loadData();
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = "/login"; return; }
+      setUser(user);
+
+      const { data: t } = await supabase.from("tenants").select("*").eq("slug", slug).single();
+      if (!t || t.user_id !== user.id) {
+        setAuthError("You don't have access to this restaurant's admin.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
+      setSubscription(sub);
+
+      // Check if subscription is expired for more than a week — block access
+      if (sub) {
+        const expires = new Date(sub.expires_at);
+        const now = new Date();
+        const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
+        if (sub.status === "expired" && diffDays > 7) {
+          setAuthError("Your subscription has ended. Please renew to access the admin panel.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      setTenant(t);
+      setTName(t?.name ?? "");
+      setTTagline(t?.tagline ?? "");
+      setTColor(t?.primary_color ?? "#ff4d00");
+
+      await loadMenu();
+      await loadOrders();
+      setLoading(false);
+    }
+    init();
     const interval = setInterval(loadMenu, 8000);
     return () => clearInterval(interval);
-  }, [authed]);
-
-  async function loadData() {
-    setLoading(true);
-    const { data: t } = await supabase.from("tenants").select("*").eq("slug", slug).single();
-    const { data: m } = await supabase.from("menu_items").select("*").eq("tenant_slug", slug).order("category");
-    const { data: o } = await supabase.from("orders").select("*").eq("tenant_slug", slug).order("created_at", { ascending: false });
-    setTenant(t);
-    setItems(m ?? []);
-    setOrders(o ?? []);
-    setTName(t?.name ?? "");
-    setTTagline(t?.tagline ?? "");
-    setTColor(t?.primary_color ?? "#ff4d00");
-    setLoading(false);
-  }
+  }, []);
 
   async function loadMenu() {
     const { data: m } = await supabase.from("menu_items").select("*").eq("tenant_slug", slug).order("category");
     setItems(m ?? []);
   }
 
+  async function loadOrders() {
+    const { data: o } = await supabase.from("orders").select("*").eq("tenant_slug", slug).order("created_at", { ascending: false });
+    setOrders(o ?? []);
+  }
+
   async function saveTenant() {
     await supabase.from("tenants").update({ name: tName, tagline: tTagline, primary_color: tColor }).eq("slug", slug);
     alert("Saved!");
-    loadData();
   }
 
   async function addItem() {
     if (!newName || !newPrice || !newCategory) return alert("Name, price and category are required.");
     await supabase.from("menu_items").insert([{ name: newName, price: parseFloat(newPrice), category: newCategory, photo_url: newPhoto, in_stock: true, tenant_slug: slug }]);
     setNewName(""); setNewPrice(""); setNewCategory(""); setNewPhoto("");
-    loadData();
+    loadMenu();
   }
 
   async function deleteItem(id) {
     if (!confirm("Delete this item?")) return;
     await supabase.from("menu_items").delete().eq("id", id);
-    loadData();
+    loadMenu();
   }
 
   async function toggleStock(id, current) {
     await supabase.from("menu_items").update({ in_stock: !current }).eq("id", id);
-    loadData();
+    loadMenu();
   }
 
   function exportCSV() {
@@ -94,15 +120,33 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
   }
 
-  const primary = tenant?.primary_color ?? "#ff4d00";
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
 
+  const primary = tenant?.primary_color ?? "#ff4d00";
   const filteredOrders = filterDate
     ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
     : orders;
-
   const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
-
   const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888" };
+
+  // Subscription warning banner logic
+  const getSubWarning = () => {
+    if (!subscription) return null;
+    const expires = new Date(subscription.expires_at);
+    const now = new Date();
+    const diffDays = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
+    if (subscription.status === "expired" || diffDays <= 0) {
+      return { msg: `Your subscription expired on ${expires.toLocaleDateString("en-IN")}. Please renew within 7 days or your menu will go offline.`, color: "#ef4444" };
+    }
+    if (diffDays <= 7) {
+      return { msg: `Your subscription expires in ${diffDays} day${diffDays === 1 ? "" : "s"}. Please renew soon.`, color: "#f59e0b" };
+    }
+    return null;
+  };
+  const subWarning = getSubWarning();
 
   const s = {
     page: { fontFamily: "sans-serif", maxWidth: 580, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
@@ -113,19 +157,28 @@ export default function AdminPage() {
     orderCard: { border: "1px solid #eee", borderRadius: 10, padding: 14, marginBottom: 10 },
   };
 
-  if (!authed) return (
-    <div style={{ ...s.page, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh" }}>
-      <h2 style={{ fontWeight: 700, fontSize: 22, marginBottom: 20 }}>Admin Login</h2>
-      <input style={{ ...s.input, maxWidth: 200, textAlign: "center", letterSpacing: 6, fontSize: 20 }} type="password" placeholder="PIN" value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && pin === "1234") setAuthed(true); }} />
-      <button style={s.btn("#111")} onClick={() => { if (pin === "1234") setAuthed(true); else alert("Wrong PIN"); }}>Enter</button>
+  if (loading) return <div style={{ ...s.page, paddingTop: 60, textAlign: "center", color: "#888" }}>Loading...</div>;
+
+  if (authError) return (
+    <div style={{ ...s.page, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+      <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{authError}</p>
+      <button style={s.btn("#111")} onClick={handleLogout}>Sign out</button>
     </div>
   );
 
-  if (loading) return <div style={{ ...s.page, paddingTop: 60, textAlign: "center", color: "#888" }}>Loading...</div>;
-
   return (
     <div style={s.page}>
-      <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>Admin — {tenant?.name}</h2>
+      {subWarning && (
+        <div style={{ background: subWarning.color, color: "white", padding: "12px 16px", borderRadius: 10, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>
+          ⚠️ {subWarning.msg}
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <h2 style={{ fontWeight: 700, fontSize: 20, margin: 0 }}>Admin — {tenant?.name}</h2>
+        <button style={{ ...s.btn("#888"), padding: "8px 14px", fontSize: 13 }} onClick={handleLogout}>Sign out</button>
+      </div>
       <a href={`/${slug}`} style={{ fontSize: 13, color: "#888" }}>← View live menu</a>
 
       <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px" }}>
