@@ -39,6 +39,8 @@ export default function RestaurantPage() {
       setLoading(false);
     }
     loadData();
+    const interval = setInterval(loadData, 8000);
+    return () => clearInterval(interval);
   }, [slug]);
 
   const addToCart = (item) => {

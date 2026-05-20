@@ -26,6 +26,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (!authed) return;
     loadData();
+    const interval = setInterval(loadMenu, 8000);
+    return () => clearInterval(interval);
   }, [authed]);
 
   async function loadData() {
@@ -38,6 +40,11 @@ export default function AdminPage() {
     setTTagline(t?.tagline ?? "");
     setTColor(t?.primary_color ?? "#ff4d00");
     setLoading(false);
+  }
+  
+  async function loadMenu() {
+    const { data: m } = await supabase.from("menu_items").select("*").eq("tenant_slug", slug).order("category");
+    setItems(m ?? []);
   }
 
   async function saveTenant() {
