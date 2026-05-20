@@ -125,7 +125,7 @@ export default function AdminPage() {
   }
 
   function downloadQR(url, label) {
-    const qrUrl = `https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(url)}&choe=UTF-8`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
     const a = document.createElement("a");
     a.href = qrUrl;
     a.download = `${label}-qr.png`;
@@ -284,7 +284,7 @@ export default function AdminPage() {
         <div>
           <p style={{ color: "#888", fontSize: 13, marginBottom: 24 }}>Print these QR codes and place them at your counter, kitchen, and back office.</p>
           {qrPages.map(page => {
-            const qrUrl = `https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl=${encodeURIComponent(page.url)}&choe=UTF-8`;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(page.url)}`;
             return (
               <div key={page.label} style={{ border: "1px solid #eee", borderRadius: 16, padding: 24, marginBottom: 16, display: "flex", gap: 24, alignItems: "center" }}>
                 <img src={qrUrl} width={110} height={110} style={{ borderRadius: 8, flexShrink: 0 }} alt={`${page.label} QR`} />
