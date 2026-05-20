@@ -81,6 +81,8 @@ export default function RestaurantPage() {
 
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) return alert("Please enter a valid 10-digit Indian mobile number");
 
    // Re-check stock for all cart items
     const cartIds = cart.map(i => i.id);
