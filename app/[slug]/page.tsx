@@ -24,6 +24,7 @@ export default function RestaurantPage() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [trackId, setTrackId] = useState("");
   const [orderNumber, setOrderNumber] = useState(null);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -31,6 +32,21 @@ export default function RestaurantPage() {
         .from("tenants").select("*").eq("slug", slug).single();
       if (!tenantData) { setLoading(false); return; }
       setTenant(tenantData);
+
+      // Check subscription
+      const { data: sub } = await supabase
+        .from("subscriptions").select("*").eq("tenant_slug", slug).single();
+      if (sub) {
+        const expires = new Date(sub.expires_at);
+        const now = new Date();
+        const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
+        if ((sub.status === "expired" || now > expires) && diffDays > 7) {
+          setOffline(true);
+          setLoading(false);
+          return;
+        }
+      }
+
       const { data: menuData } = await supabase
         .from("menu_items").select("*")
         .eq("tenant_slug", slug).eq("in_stock", true);
@@ -116,6 +132,14 @@ export default function RestaurantPage() {
   if (!tenant) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
       <p>Restaurant not found.</p>
+    </div>
+  );
+
+  if (offline) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif", flexDirection: "column", textAlign: "center", padding: 24 }}>
+      <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{tenant.name} is currently offline</h2>
+      <p style={{ color: "#888", fontSize: 15 }}>Online ordering is temporarily unavailable. Please visit us in person or contact us directly.</p>
     </div>
   );
 
