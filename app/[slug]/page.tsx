@@ -64,17 +64,32 @@ export default function RestaurantPage() {
 
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
-    const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
 
-    const { data, error } = await supabase.from("orders").insert([{
-      customer_name: name, phone, items: itemsSummary,
-      total, status: "new", tenant_slug: slug
-    }]).select().single();
+   // Re-check stock for all cart items
+    const cartIds = cart.map(i => i.id);
+    const { data: freshItems } = await supabase
+      .from("menu_items")
+      .select("id, name, in_stock")
+      .in("id", cartIds);
+
+    const outOfStock = freshItems?.filter(i => !i.in_stock) ?? [];
+    if (outOfStock.length > 0) {
+      const names = outOfStock.map(i => i.name).join(", ");
+      alert(`Sorry! These items just went out of stock: ${names}\n\nThey've been removed from your cart.`);
+      setCart(prev => prev.filter(i => !outOfStock.find(o => o.id === i.id)));
+      return;
+    }
+
+     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
+     const { data, error } = await supabase.from("orders").insert([{
+        customer_name: name, phone, items: itemsSummary,
+       total, status: "new", tenant_slug: slug
+     }]).select().single();
 
     if (error) { alert("Something went wrong."); return; }
-    setOrderNumber(data.id);
-    setScreen("success");
-  };
+     setOrderNumber(data.id);
+     setScreen("success");
+    };
 
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
