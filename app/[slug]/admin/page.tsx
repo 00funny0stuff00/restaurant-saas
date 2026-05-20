@@ -9,15 +9,15 @@ export default function AdminPage() {
   const [pin, setPin] = useState("");
   const [tenant, setTenant] = useState(null);
   const [items, setItems] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("menu");
+  const [filterDate, setFilterDate] = useState("");
 
-  // Tenant edit fields
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
   const [tColor, setTColor] = useState("");
 
-  // New item fields
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -34,14 +34,16 @@ export default function AdminPage() {
     setLoading(true);
     const { data: t } = await supabase.from("tenants").select("*").eq("slug", slug).single();
     const { data: m } = await supabase.from("menu_items").select("*").eq("tenant_slug", slug).order("category");
+    const { data: o } = await supabase.from("orders").select("*").eq("tenant_slug", slug).order("created_at", { ascending: false });
     setTenant(t);
     setItems(m ?? []);
+    setOrders(o ?? []);
     setTName(t?.name ?? "");
     setTTagline(t?.tagline ?? "");
     setTColor(t?.primary_color ?? "#ff4d00");
     setLoading(false);
   }
-  
+
   async function loadMenu() {
     const { data: m } = await supabase.from("menu_items").select("*").eq("tenant_slug", slug).order("category");
     setItems(m ?? []);
@@ -71,14 +73,44 @@ export default function AdminPage() {
     loadData();
   }
 
+  function exportCSV() {
+    const rows = filteredOrders.map(o => ({
+      "Order ID": o.id,
+      "Date": new Date(o.created_at).toLocaleString("en-IN"),
+      "Customer": o.customer_name,
+      "Phone": o.phone,
+      "Items": o.items,
+      "Total (₹)": o.total,
+      "Status": o.status,
+    }));
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(","), ...rows.map(r => headers.map(h => `"${r[h]}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `orders-${slug}-${filterDate || "all"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const primary = tenant?.primary_color ?? "#ff4d00";
 
+  const filteredOrders = filterDate
+    ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
+    : orders;
+
+  const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
+
+  const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888" };
+
   const s = {
-    page: { fontFamily: "sans-serif", maxWidth: 520, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
+    page: { fontFamily: "sans-serif", maxWidth: 580, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
     input: { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, marginBottom: 10, boxSizing: "border-box" },
     btn: (color) => ({ padding: "10px 20px", background: color, color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14 }),
-    tab: (active) => ({ padding: "10px 20px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 14 }),
+    tab: (active) => ({ padding: "10px 16px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 14 }),
     card: { border: "1px solid #eee", borderRadius: 10, padding: 12, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
+    orderCard: { border: "1px solid #eee", borderRadius: 10, padding: 14, marginBottom: 10 },
   };
 
   if (!authed) return (
@@ -98,6 +130,7 @@ export default function AdminPage() {
 
       <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px" }}>
         <button style={s.tab(tab === "menu")} onClick={() => setTab("menu")}>Menu Items</button>
+        <button style={s.tab(tab === "orders")} onClick={() => setTab("orders")}>Orders</button>
         <button style={s.tab(tab === "restaurant")} onClick={() => setTab("restaurant")}>Restaurant Info</button>
       </div>
 
@@ -138,6 +171,44 @@ export default function AdminPage() {
               <button style={s.btn("#ef4444")} onClick={() => deleteItem(item.id)}>Delete</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === "orders" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>{filteredOrders.length} orders</p>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#888" }}>Total revenue: ₹{totalRevenue.toFixed(2)}</p>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }} />
+              {filterDate && <button style={{ ...s.btn("#888"), padding: "8px 12px", fontSize: 12 }} onClick={() => setFilterDate("")}>Clear</button>}
+              <button style={{ ...s.btn(primary), padding: "8px 14px", fontSize: 13 }} onClick={exportCSV} disabled={filteredOrders.length === 0}>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          {filteredOrders.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#888", paddingTop: 40 }}>No orders found.</p>
+          ) : (
+            filteredOrders.map(order => (
+              <div key={order.id} style={s.orderCard}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>#{order.id} — {order.customer_name}</span>
+                  <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 20, background: statusColor[order.status] ?? "#888", color: "white", fontWeight: 700 }}>
+                    {order.status?.toUpperCase()}
+                  </span>
+                </div>
+                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#555" }}>{order.items}</p>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#888" }}>{order.phone} · {new Date(order.created_at).toLocaleString("en-IN")}</span>
+                  <span style={{ fontWeight: 700, color: primary }}>₹{order.total}</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
