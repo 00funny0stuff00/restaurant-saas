@@ -60,14 +60,19 @@ export default function RestaurantPage() {
   const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
+  const [orderNumber, setOrderNumber] = useState(null);
+
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
-    const { error } = await supabase.from("orders").insert([{
+
+    const { data, error } = await supabase.from("orders").insert([{
       customer_name: name, phone, items: itemsSummary,
       total, status: "new", tenant_slug: slug
-    }]);
+    }]).select().single();
+
     if (error) { alert("Something went wrong."); return; }
+    setOrderNumber(data.id);
     setScreen("success");
   };
 
@@ -123,9 +128,17 @@ export default function RestaurantPage() {
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 64 }}>✅</div>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginTop: 16 }}>Order placed!</h2>
-        <p style={{ color: "#888" }}>Thanks {name}, we'll have it ready soon.</p>
-        <p style={{ fontWeight: 700, fontSize: 18, color: primary }}>₹{total}</p>
-        <button style={{ ...s.orderBtn, marginTop: 24 }} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); }}>
+        <p style={{ color: "#888" }}>Thanks {name}!</p>
+        <div style={{ background: primary, color: "white", borderRadius: 16, padding: "20px 32px", margin: "16px 0", display: "inline-block" }}>
+          <p style={{ fontSize: 13, margin: "0 0 4px", opacity: 0.85 }}>Your token number</p>
+          <p style={{ fontSize: 48, fontWeight: 900, margin: 0, letterSpacing: -2 }}>#{orderNumber}</p>
+        </div>
+        <p style={{ fontWeight: 700, fontSize: 16, color: primary, marginBottom: 8 }}>₹{total}</p>
+        <p style={{ color: "#888", fontSize: 13, marginBottom: 24 }}>Show this number at the counter when your order is ready.</p>
+        <a href={`/${slug}/order/${orderNumber}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
+          Track your order →
+        </a>
+        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); }}>
           Order again
         </button>
       </div>
