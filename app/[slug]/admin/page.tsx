@@ -40,7 +40,6 @@ export default function AdminPage() {
       const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
       setSubscription(sub);
 
-      // Check if subscription is expired for more than a week — block access
       if (sub) {
         const expires = new Date(sub.expires_at);
         const now = new Date();
@@ -125,6 +124,22 @@ export default function AdminPage() {
     window.location.href = "/login";
   }
 
+  function downloadQR(url, label) {
+    const qrUrl = `https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(url)}&choe=UTF-8`;
+    const a = document.createElement("a");
+    a.href = qrUrl;
+    a.download = `${label}-qr.png`;
+    a.target = "_blank";
+    a.click();
+  }
+
+  const base = "https://restaurant-saas-vert.vercel.app";
+  const qrPages = [
+    { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
+    { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
+    { label: "Admin", desc: "Quick access to your admin panel", url: `${base}/${slug}/admin`, icon: "⚙️" },
+  ];
+
   const primary = tenant?.primary_color ?? "#ff4d00";
   const filteredOrders = filterDate
     ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
@@ -132,7 +147,6 @@ export default function AdminPage() {
   const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
   const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888" };
 
-  // Subscription warning banner logic
   const getSubWarning = () => {
     if (!subscription) return null;
     const expires = new Date(subscription.expires_at);
@@ -152,7 +166,7 @@ export default function AdminPage() {
     page: { fontFamily: "sans-serif", maxWidth: 580, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
     input: { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, marginBottom: 10, boxSizing: "border-box" },
     btn: (color) => ({ padding: "10px 20px", background: color, color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14 }),
-    tab: (active) => ({ padding: "10px 16px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 14 }),
+    tab: (active) => ({ padding: "10px 12px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 13 }),
     card: { border: "1px solid #eee", borderRadius: 10, padding: 12, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
     orderCard: { border: "1px solid #eee", borderRadius: 10, padding: 14, marginBottom: 10 },
   };
@@ -181,9 +195,10 @@ export default function AdminPage() {
       </div>
       <a href={`/${slug}`} style={{ fontSize: 13, color: "#888" }}>← View live menu</a>
 
-      <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" }}>
         <button style={s.tab(tab === "menu")} onClick={() => setTab("menu")}>Menu Items</button>
         <button style={s.tab(tab === "orders")} onClick={() => setTab("orders")}>Orders</button>
+        <button style={s.tab(tab === "qr")} onClick={() => setTab("qr")}>QR Codes</button>
         <button style={s.tab(tab === "restaurant")} onClick={() => setTab("restaurant")}>Restaurant Info</button>
       </div>
 
@@ -262,6 +277,29 @@ export default function AdminPage() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {tab === "qr" && (
+        <div>
+          <p style={{ color: "#888", fontSize: 13, marginBottom: 24 }}>Print these QR codes and place them at your counter, kitchen, and back office.</p>
+          {qrPages.map(page => {
+            const qrUrl = `https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl=${encodeURIComponent(page.url)}&choe=UTF-8`;
+            return (
+              <div key={page.label} style={{ border: "1px solid #eee", borderRadius: 16, padding: 24, marginBottom: 16, display: "flex", gap: 24, alignItems: "center" }}>
+                <img src={qrUrl} width={110} height={110} style={{ borderRadius: 8, flexShrink: 0 }} alt={`${page.label} QR`} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 16 }}>{page.icon} {page.label} page</p>
+                  <p style={{ margin: "0 0 8px", fontSize: 12, color: "#888" }}>{page.desc}</p>
+                  <p style={{ margin: "0 0 12px", fontSize: 11, color: "#bbb", wordBreak: "break-all" }}>{page.url}</p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <a href={page.url} target="_blank" style={{ ...s.btn("#f3f4f6"), color: "#111", textDecoration: "none", padding: "8px 14px", fontSize: 12 }}>Open →</a>
+                    <button style={{ ...s.btn(primary), padding: "8px 14px", fontSize: 12 }} onClick={() => downloadQR(page.url, page.label)}>Download QR</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
