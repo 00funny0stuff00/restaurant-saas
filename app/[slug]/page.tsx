@@ -43,7 +43,13 @@ export default function RestaurantPage() {
       const { data: menuData } = await supabase
         .from("menu_items").select("*")
         .eq("tenant_slug", slug).eq("in_stock", true);
-      if (menuData) setItems(menuData);
+      if (menuData) {
+        setItems(prev => {
+          const prevIds = prev.map(i => i.id + i.in_stock).join();
+          const newIds = menuData.map(i => i.id + i.in_stock).join();
+          return prevIds === newIds ? prev : menuData;
+        });
+      }
     }
 
     loadData();
