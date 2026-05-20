@@ -38,7 +38,7 @@ export default function RestaurantPage() {
       }
       setLoading(false);
     }
-    loadData();
+
     async function refreshMenu() {
       const { data: menuData } = await supabase
         .from("menu_items").select("*")
@@ -46,8 +46,9 @@ export default function RestaurantPage() {
       if (menuData) setItems(menuData);
     }
 
+    loadData();
     const menuInterval = setInterval(refreshMenu, 8000);
-    const pageInterval = setInterval(loadData, 300000);
+    const pageInterval = setInterval(() => window.location.reload(), 300000);
     return () => { clearInterval(menuInterval); clearInterval(pageInterval); };
   }, [slug]);
 
