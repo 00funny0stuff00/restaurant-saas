@@ -11,6 +11,7 @@ export default function OrderTracking() {
   const [order, setOrder] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   async function loadOrder() {
     const { data } = await supabase.from("orders").select("*").eq("id", orderId).single();
@@ -29,6 +30,28 @@ export default function OrderTracking() {
     return () => clearInterval(interval);
   }, []);
 
+  async function cancelOrder() {
+    if (!confirm("Are you sure you want to cancel your order?")) return;
+    setCancelling(true);
+    await supabase.from("orders").update({ status: "cancelled", edited: true }).eq("id", orderId);
+    await loadOrder();
+    setCancelling(false);
+  }
+
+  async function editOrder() {
+    // Store order info in sessionStorage and go back to menu
+    sessionStorage.setItem("editOrder", JSON.stringify({
+      id: order.id,
+      items: order.items,
+      name: order.customer_name,
+      phone: order.phone,
+      order_type: order.order_type,
+      table_number: order.table_number,
+      notes: order.notes,
+    }));
+    window.location.href = `/${slug}?edit=${order.id}`;
+  }
+
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
       <p style={{ color: "#888" }}>Loading...</p>
@@ -45,6 +68,8 @@ export default function OrderTracking() {
   const isDineIn = order.order_type === "dine-in";
   const isCancelled = order.status === "cancelled";
   const isDone = order.status === "done";
+  const isNew = order.status === "new";
+  const canEdit = tenant?.edit_order_enabled && isNew;
 
   const steps = [
     { key: "new", label: "Order received", icon: "📋" },
@@ -52,14 +77,10 @@ export default function OrderTracking() {
     { key: "ready", label: isDineIn ? "Delivered to table" : "Ready for pickup!", icon: isDineIn ? "🪑" : "✅" },
   ];
 
-  const currentStep = isCancelled || isDone
-    ? -1
-    : steps.findIndex(s => s.key === order.status);
+  const currentStep = isCancelled || isDone ? -1 : steps.findIndex(s => s.key === order.status);
 
   const s = {
     wrap: { maxWidth: 420, margin: "0 auto", padding: "32px 16px", fontFamily: "sans-serif", minHeight: "100vh", background: "white", color: "#111" },
-    header: { textAlign: "center", marginBottom: 32 },
-    restaurantName: { fontSize: 14, color: "#888", margin: "0 0 8px" },
     tokenBox: { background: isCancelled ? "#ef4444" : primary, color: "white", borderRadius: 16, padding: "20px 32px", display: "inline-block", marginBottom: 8 },
     tokenLabel: { fontSize: 12, margin: "0 0 4px", opacity: 0.85 },
     tokenNum: { fontSize: 48, fontWeight: 900, margin: 0, letterSpacing: -2 },
@@ -71,41 +92,28 @@ export default function OrderTracking() {
       opacity: done ? 1 : active ? 1 : 0.4,
     }),
     stepLabel: (active, done) => ({
-      fontWeight: active || done ? 700 : 400,
-      fontSize: 15, margin: "10px 0 4px",
+      fontWeight: active || done ? 700 : 400, fontSize: 15, margin: "10px 0 4px",
       color: active || done ? "#111" : "#aaa",
     }),
     orderCard: { background: "#f9f9f9", borderRadius: 12, padding: 16, marginTop: 24 },
-    orderTitle: { fontSize: 13, color: "#888", margin: "0 0 8px", fontWeight: 600 },
-    orderItems: { fontSize: 14, color: "#333", margin: "0 0 8px" },
-    orderTotal: { fontSize: 15, fontWeight: 700, color: primary, margin: 0 },
-    refreshNote: { textAlign: "center", fontSize: 12, color: "#bbb", marginTop: 24 },
+    editBtn: { width: "100%", padding: 12, background: "#f3f4f6", color: "#111", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 12 },
+    cancelBtn: { width: "100%", padding: 12, background: "white", color: "#ef4444", border: "2px solid #ef4444", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 8 },
   };
 
   return (
     <div style={s.wrap}>
-      <div style={s.header}>
-        <p style={s.restaurantName}>{tenant?.name}</p>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <p style={{ fontSize: 14, color: "#888", margin: "0 0 8px" }}>{tenant?.name}</p>
         <div style={s.tokenBox}>
           <p style={s.tokenLabel}>{isCancelled ? "Cancelled order" : "Your token"}</p>
           <p style={s.tokenNum}>#{order.id}</p>
         </div>
-
-        {isCancelled && (
-          <p style={{ color: "#ef4444", fontWeight: 700, fontSize: 16, marginTop: 8 }}>
-            ❌ Your order was cancelled. Please speak to staff.
-          </p>
+        {order.edited && !isCancelled && (
+          <p style={{ color: "#f59e0b", fontWeight: 700, fontSize: 13, marginTop: 4 }}>✏️ This order was edited</p>
         )}
-        {isDone && (
-          <p style={{ color: "#16a34a", fontWeight: 700, fontSize: 16, marginTop: 8 }}>
-            ✅ {isDineIn ? "Enjoy your meal!" : "Order complete. Thank you!"}
-          </p>
-        )}
-        {order.status === "ready" && !isCancelled && (
-          <p style={{ color: primary, fontWeight: 700, fontSize: 16, marginTop: 8 }}>
-            🎉 {isDineIn ? "Your order is ready — enjoy your meal!" : "Your order is ready! Please collect it."}
-          </p>
-        )}
+        {isCancelled && <p style={{ color: "#ef4444", fontWeight: 700, fontSize: 16, marginTop: 8 }}>❌ Your order was cancelled. Please speak to staff.</p>}
+        {isDone && <p style={{ color: "#16a34a", fontWeight: 700, fontSize: 16, marginTop: 8 }}>✅ {isDineIn ? "Enjoy your meal!" : "Order complete. Thank you!"}</p>}
+        {order.status === "ready" && <p style={{ color: primary, fontWeight: 700, fontSize: 16, marginTop: 8 }}>🎉 {isDineIn ? "Your order is ready — enjoy your meal!" : "Your order is ready! Please collect it."}</p>}
       </div>
 
       {!isCancelled && !isDone && (
@@ -115,9 +123,7 @@ export default function OrderTracking() {
             const active = index === currentStep;
             return (
               <div key={step.key} style={s.stepRow}>
-                <div style={s.stepIcon(active, done)}>
-                  {done ? "✓" : step.icon}
-                </div>
+                <div style={s.stepIcon(active, done)}>{done ? "✓" : step.icon}</div>
                 <div>
                   <p style={s.stepLabel(active, done)}>{step.label}</p>
                   {active && <p style={{ fontSize: 12, color: "#888", margin: 0 }}>In progress...</p>}
@@ -130,20 +136,36 @@ export default function OrderTracking() {
       )}
 
       <div style={s.orderCard}>
-        <p style={s.orderTitle}>ORDER SUMMARY</p>
+        <p style={{ fontSize: 13, color: "#888", margin: "0 0 8px", fontWeight: 600 }}>ORDER SUMMARY</p>
         {isDineIn && order.table_number && (
           <p style={{ fontSize: 13, color: "#888", margin: "0 0 6px" }}>🪑 Dine-in · Table {order.table_number}</p>
         )}
-        <p style={s.orderItems}>{order.items}</p>
-        <p style={s.orderTotal}>Total: ₹{order.total}</p>
+        <p style={{ fontSize: 14, color: "#333", margin: "0 0 8px" }}>{order.items}</p>
+        {order.notes && (
+          <div style={{ background: "#fff3cd", border: "1px solid #f59e0b", borderRadius: 8, padding: "8px 12px", margin: "8px 0" }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#92400e", margin: "0 0 2px" }}>📝 Special instructions</p>
+            <p style={{ fontSize: 13, color: "#92400e", margin: 0 }}>{order.notes}</p>
+          </div>
+        )}
+        <p style={{ fontSize: 15, fontWeight: 700, color: primary, margin: 0 }}>Total: ₹{order.total}</p>
       </div>
+
+      {canEdit && (
+        <>
+          <button style={s.editBtn} onClick={editOrder}>✏️ Edit my order</button>
+          <button style={s.cancelBtn} onClick={cancelOrder} disabled={cancelling}>
+            {cancelling ? "Cancelling..." : "✕ Cancel my order"}
+          </button>
+          <p style={{ fontSize: 11, color: "#aaa", textAlign: "center", marginTop: 8 }}>You can only edit or cancel while your order hasn't started preparing.</p>
+        </>
+      )}
 
       <a href={`/${slug}`} style={{ display: "block", textAlign: "center", marginTop: 16, padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14 }}>
         ← Back to menu
       </a>
 
       {!isCancelled && !isDone && (
-        <p style={s.refreshNote}>Page refreshes automatically every 6 seconds</p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#bbb", marginTop: 24 }}>Page refreshes automatically every 6 seconds</p>
       )}
     </div>
   );

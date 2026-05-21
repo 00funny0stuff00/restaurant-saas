@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 
 export default function AdminPage() {
+  const [editOrderEnabled, setEditOrderEnabled] = useState(false);
+  const [customizeOrderEnabled, setCustomizeOrderEnabled] = useState(false);
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
   const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
@@ -33,6 +35,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     async function init() {
+      setEditOrderEnabled(t?.edit_order_enabled ?? false);
+      setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/login"; return; }
       setUser(user);
@@ -99,6 +103,13 @@ export default function AdminPage() {
     }).eq("slug", slug);
     setSavingSettings(false);
     alert("Settings saved!");
+    await supabase.from("tenants").update({
+       queue_limit_enabled: queueLimitEnabled,
+       queue_limit: queueLimit,
+       dine_in_enabled: dineInEnabled,
+       edit_order_enabled: editOrderEnabled,
+       customize_order_enabled: customizeOrderEnabled,
+    }).eq("slug", slug);
   }
 
   async function addItem() {
@@ -269,10 +280,14 @@ export default function AdminPage() {
 
           <Toggle label="Enable dine-in option" value={dineInEnabled} onChange={setDineInEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>When enabled, customers can choose between Dine-in (with table number) or Takeaway.</p>
-
+          <Toggle label="Allow customers to edit/cancel order" value={editOrderEnabled} onChange={setEditOrderEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 16 }}>Customers can edit or cancel while status is still "new".</p>
+          <Toggle label="Allow order customization notes" value={customizeOrderEnabled} onChange={setCustomizeOrderEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>Customers can add special instructions like "no onions" or "extra spicy".</p>
           <button style={s.btn(primary)} onClick={saveSettings} disabled={savingSettings}>
             {savingSettings ? "Saving..." : "Save settings"}
           </button>
+
         </div>
       )}
 
