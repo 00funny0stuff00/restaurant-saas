@@ -35,8 +35,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     async function init() {
-      setEditOrderEnabled(t?.edit_order_enabled ?? false);
-      setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/login"; return; }
       setUser(user);
@@ -69,6 +67,8 @@ export default function AdminPage() {
       setQueueLimitEnabled(t?.queue_limit_enabled ?? false);
       setQueueLimit(t?.queue_limit ?? 10);
       setDineInEnabled(t?.dine_in_enabled ?? false);
+      setEditOrderEnabled(t?.edit_order_enabled ?? false);
+      setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
 
       await loadMenu();
       await loadOrders();
