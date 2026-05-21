@@ -1,4 +1,4 @@
-// @ts-nochec// @ts-nocheck
+// @ts-nocheck
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
