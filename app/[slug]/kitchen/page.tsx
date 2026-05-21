@@ -18,17 +18,21 @@ export default function KitchenPage() {
     try {
       if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
       const ctx = audioCtx.current;
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.6);
-    } catch (e) {}
+
+      // Play 3 quick beeps
+      [0, 0.25, 0.5].forEach(offset => {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(1000, ctx.currentTime + offset);
+        gainNode.gain.setValueAtTime(1.0, ctx.currentTime + offset);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.2);
+        oscillator.start(ctx.currentTime + offset);
+        oscillator.stop(ctx.currentTime + offset + 0.2);
+      });
+    } catch (e) { console.error("Beep error:", e); }
   }
 
   async function loadOrders() {
@@ -38,9 +42,12 @@ export default function KitchenPage() {
       .order("created_at", { ascending: true });
     if (data) {
       const hasNew = data.some(o => !prevOrderIds.current.has(o.id));
-      if (hasNew && prevOrderIds.current.size > 0 && soundEnabled.current) playBeep();
+      const isFirstLoad = prevOrderIds.current.size === 0;
       prevOrderIds.current = new Set(data.map(o => o.id));
       setOrders(data);
+      if (hasNew && !isFirstLoad && soundEnabled.current) {
+        playBeep();
+      }
     }
   }
 
