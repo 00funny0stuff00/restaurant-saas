@@ -18,6 +18,8 @@ export default function RestaurantPage() {
   const [screen, setScreen] = useState("menu");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [orderType, setOrderType] = useState("takeaway");
+  const [tableNumber, setTableNumber] = useState("");
   const [items, setItems] = useState([]);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,17 +27,16 @@ export default function RestaurantPage() {
   const [trackId, setTrackId] = useState("");
   const [orderNumber, setOrderNumber] = useState(null);
   const [offline, setOffline] = useState(false);
+  const [queueFull, setQueueFull] = useState(false);
 
   useEffect(() => {
     async function loadData() {
-      const { data: tenantData } = await supabase
-        .from("tenants").select("*").eq("slug", slug).single();
+      const { data: tenantData } = await supabase.from("tenants").select("*").eq("slug", slug).single();
       if (!tenantData) { setLoading(false); return; }
       setTenant(tenantData);
 
       // Check subscription
-      const { data: sub } = await supabase
-        .from("subscriptions").select("*").eq("tenant_slug", slug).single();
+      const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
       if (sub) {
         const expires = new Date(sub.expires_at);
         const now = new Date();
@@ -47,8 +48,16 @@ export default function RestaurantPage() {
         }
       }
 
-      const { data: menuData } = await supabase
-        .from("menu_items").select("*")
+      // Check queue
+      if (tenantData.queue_limit_enabled) {
+        const { data: activeOrders } = await supabase.from("orders").select("id")
+          .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
+        if (activeOrders && activeOrders.length >= tenantData.queue_limit) {
+          setQueueFull(true);
+        }
+      }
+
+      const { data: menuData } = await supabase.from("menu_items").select("*")
         .eq("tenant_slug", slug).eq("in_stock", true);
       if (menuData) {
         setItems(menuData);
@@ -58,8 +67,7 @@ export default function RestaurantPage() {
     }
 
     async function refreshMenu() {
-      const { data: menuData } = await supabase
-        .from("menu_items").select("*")
+      const { data: menuData } = await supabase.from("menu_items").select("*")
         .eq("tenant_slug", slug).eq("in_stock", true);
       if (menuData) {
         setItems(prev => {
@@ -67,6 +75,12 @@ export default function RestaurantPage() {
           const newIds = menuData.map(i => i.id + i.in_stock).join();
           return prevIds === newIds ? prev : menuData;
         });
+      }
+      // Refresh queue status
+      if (tenant?.queue_limit_enabled) {
+        const { data: activeOrders } = await supabase.from("orders").select("id")
+          .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
+        setQueueFull(activeOrders && activeOrders.length >= tenant.queue_limit);
       }
     }
 
@@ -99,11 +113,20 @@ export default function RestaurantPage() {
     if (!name || !phone) return alert("Please enter your name and phone number");
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(phone)) return alert("Please enter a valid 10-digit Indian mobile number");
+    if (orderType === "dine-in" && !tableNumber) return alert("Please enter your table number");
+
+    // Re-check queue
+    if (tenant?.queue_limit_enabled) {
+      const { data: activeOrders } = await supabase.from("orders").select("id")
+        .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
+      if (activeOrders && activeOrders.length >= tenant.queue_limit) {
+        setQueueFull(true);
+        return alert("Sorry, the kitchen is too busy right now. Please wait a few minutes and try again.");
+      }
+    }
 
     const cartIds = cart.map(i => i.id);
-    const { data: freshItems } = await supabase
-      .from("menu_items").select("id, name, in_stock").in("id", cartIds);
-
+    const { data: freshItems } = await supabase.from("menu_items").select("id, name, in_stock").in("id", cartIds);
     const outOfStock = freshItems?.filter(i => !i.in_stock) ?? [];
     if (outOfStock.length > 0) {
       const names = outOfStock.map(i => i.name).join(", ");
@@ -114,8 +137,10 @@ export default function RestaurantPage() {
 
     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
     const { data, error } = await supabase.from("orders").insert([{
-      customer_name: name, phone, items: itemsSummary,
-      total, status: "new", tenant_slug: slug
+      customer_name: name, phone, items: itemsSummary, total,
+      status: "new", tenant_slug: slug,
+      order_type: orderType,
+      table_number: orderType === "dine-in" ? tableNumber : null,
     }]).select().single();
 
     if (error) { alert("Something went wrong."); return; }
@@ -136,7 +161,7 @@ export default function RestaurantPage() {
   );
 
   if (offline) return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif", flexDirection: "column", textAlign: "center", padding: 24 }}>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif", flexDirection: "column", textAlign: "center", padding: 24, background: "white" }}>
       <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{tenant.name} is currently offline</h2>
       <p style={{ color: "#888", fontSize: 15 }}>Online ordering is temporarily unavailable. Please visit us in person or contact us directly.</p>
@@ -167,6 +192,7 @@ export default function RestaurantPage() {
     left: { display: "flex", gap: 10, alignItems: "center", minWidth: 0, flex: 1, overflow: "hidden" },
     photo: { width: 52, height: 52, borderRadius: 8, objectFit: "cover", background: secondary, flexShrink: 0 },
     itemName: { fontWeight: 600, margin: 0, fontSize: 14, color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+    itemDesc: { color: "#aaa", fontSize: 11, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
     itemCat: { color: "#888", fontSize: 12, margin: "2px 0 0" },
     price: { fontWeight: 700, margin: 0, fontSize: 14, color: "#111", textAlign: "right" },
     addBtn: { marginTop: 6, background: primary, color: "white", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 },
@@ -176,6 +202,7 @@ export default function RestaurantPage() {
     input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${secondary}`, fontSize: 15, marginBottom: 12, boxSizing: "border-box" },
     orderBtn: { width: "100%", padding: 14, background: primary, color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" },
     backBtn: { background: "none", border: "none", color: primary, fontSize: 15, cursor: "pointer", marginBottom: 16, padding: 0, fontWeight: 600 },
+    typeBtn: (active) => ({ flex: 1, padding: "10px 0", border: `2px solid ${active ? primary : "#eee"}`, borderRadius: 10, background: active ? secondary : "white", color: active ? primary : "#888", fontWeight: active ? 700 : 400, cursor: "pointer", fontSize: 14 }),
   };
 
   if (screen === "success") return (
@@ -193,7 +220,7 @@ export default function RestaurantPage() {
         <a href={`/${slug}/order/${orderNumber}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
           Track your order →
         </a>
-        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); }}>
+        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); }}>
           Order again
         </button>
       </div>
@@ -216,6 +243,13 @@ export default function RestaurantPage() {
     <div style={{ ...s.page, padding: 16 }}>
       <button style={s.backBtn} onClick={() => setScreen("menu")}>← Back to menu</button>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Your order</h2>
+
+      {queueFull && (
+        <div style={{ background: "#fff3cd", border: "1px solid #f59e0b", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 14, color: "#92400e", fontWeight: 600 }}>
+          ⏳ The kitchen is very busy right now. You can still browse the menu, but ordering may be delayed. Please try placing your order in a few minutes.
+        </div>
+      )}
+
       {cart.map((item) => (
         <div key={item.name} style={s.card}>
           <div style={s.left}>
@@ -235,14 +269,32 @@ export default function RestaurantPage() {
           </div>
         </div>
       ))}
-      <div style={{ borderTop: `2px dashed ${secondary}`, paddingTop: 16, marginBottom: 24 }}>
+
+      <div style={{ borderTop: `2px dashed ${secondary}`, paddingTop: 16, marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18 }}>
           <span>Total</span><span style={{ color: primary }}>₹{total}</span>
         </div>
       </div>
+
+      {tenant.dine_in_enabled && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Order type</p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button style={s.typeBtn(orderType === "takeaway")} onClick={() => setOrderType("takeaway")}>🥡 Takeaway</button>
+            <button style={s.typeBtn(orderType === "dine-in")} onClick={() => setOrderType("dine-in")}>🪑 Dine-in</button>
+          </div>
+        </div>
+      )}
+
+      {orderType === "dine-in" && (
+        <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
+      )}
+
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      <button style={s.orderBtn} onClick={placeOrder}>Place order →</button>
+      <button style={{ ...s.orderBtn, opacity: queueFull ? 0.5 : 1 }} onClick={placeOrder} disabled={queueFull}>
+        {queueFull ? "Kitchen busy — try again soon" : "Place order →"}
+      </button>
     </div>
   );
 
@@ -255,6 +307,7 @@ export default function RestaurantPage() {
             <p style={s.tagline}>{tenant.tagline}</p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {queueFull && <span style={{ fontSize: 10, background: "#f59e0b", color: "white", padding: "3px 8px", borderRadius: 20, fontWeight: 700 }}>BUSY</span>}
             <button style={{ background: "none", border: `1px solid ${primary}`, color: primary, borderRadius: 20, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }} onClick={() => setScreen("track")}>
               Track
             </button>
@@ -266,6 +319,12 @@ export default function RestaurantPage() {
           </div>
         </div>
       </div>
+
+      {queueFull && (
+        <div style={{ background: "#fff3cd", borderBottom: "1px solid #f59e0b", padding: "10px 16px", fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+          ⏳ Kitchen is busy right now. You can browse but ordering is temporarily paused.
+        </div>
+      )}
 
       <div style={s.body}>
         <div style={s.sidebar}>
@@ -285,8 +344,9 @@ export default function RestaurantPage() {
                     ? <img src={item.photo_url} style={s.photo} alt={item.name} />
                     : <div style={{ ...s.photo, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🍽️</div>
                   }
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <p style={s.itemName}>{item.name}</p>
+                    {item.description && <p style={s.itemDesc}>{item.description}</p>}
                     <p style={s.itemCat}>{item.category}</p>
                   </div>
                 </div>
