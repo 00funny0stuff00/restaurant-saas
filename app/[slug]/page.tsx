@@ -20,6 +20,7 @@ export default function RestaurantPage() {
   const [phone, setPhone] = useState("");
   const [orderType, setOrderType] = useState("takeaway");
   const [tableNumber, setTableNumber] = useState("");
+  const [notes, setNotes] = useState("");
   const [items, setItems] = useState([]);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,26 +36,20 @@ export default function RestaurantPage() {
       if (!tenantData) { setLoading(false); return; }
       setTenant(tenantData);
 
-      // Check subscription
       const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
       if (sub) {
         const expires = new Date(sub.expires_at);
         const now = new Date();
         const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
         if ((sub.status === "expired" || now > expires) && diffDays > 7) {
-          setOffline(true);
-          setLoading(false);
-          return;
+          setOffline(true); setLoading(false); return;
         }
       }
 
-      // Check queue
       if (tenantData.queue_limit_enabled) {
         const { data: activeOrders } = await supabase.from("orders").select("id")
           .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
-        if (activeOrders && activeOrders.length >= tenantData.queue_limit) {
-          setQueueFull(true);
-        }
+        if (activeOrders && activeOrders.length >= tenantData.queue_limit) setQueueFull(true);
       }
 
       const { data: menuData } = await supabase.from("menu_items").select("*")
@@ -75,12 +70,6 @@ export default function RestaurantPage() {
           const newIds = menuData.map(i => i.id + i.in_stock).join();
           return prevIds === newIds ? prev : menuData;
         });
-      }
-      // Refresh queue status
-      if (tenant?.queue_limit_enabled) {
-        const { data: activeOrders } = await supabase.from("orders").select("id")
-          .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
-        setQueueFull(activeOrders && activeOrders.length >= tenant.queue_limit);
       }
     }
 
@@ -115,7 +104,6 @@ export default function RestaurantPage() {
     if (!phoneRegex.test(phone)) return alert("Please enter a valid 10-digit Indian mobile number");
     if (orderType === "dine-in" && !tableNumber) return alert("Please enter your table number");
 
-    // Re-check queue
     if (tenant?.queue_limit_enabled) {
       const { data: activeOrders } = await supabase.from("orders").select("id")
         .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
@@ -141,6 +129,7 @@ export default function RestaurantPage() {
       status: "new", tenant_slug: slug,
       order_type: orderType,
       table_number: orderType === "dine-in" ? tableNumber : null,
+      notes: notes || null,
     }]).select().single();
 
     if (error) { alert("Something went wrong."); return; }
@@ -220,7 +209,7 @@ export default function RestaurantPage() {
         <a href={`/${slug}/order/${orderNumber}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
           Track your order →
         </a>
-        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); }}>
+        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); setNotes(""); }}>
           Order again
         </button>
       </div>
@@ -246,7 +235,7 @@ export default function RestaurantPage() {
 
       {queueFull && (
         <div style={{ background: "#fff3cd", border: "1px solid #f59e0b", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 14, color: "#92400e", fontWeight: 600 }}>
-          ⏳ The kitchen is very busy right now. You can still browse the menu, but ordering may be delayed. Please try placing your order in a few minutes.
+          ⏳ The kitchen is very busy right now. Please try placing your order in a few minutes.
         </div>
       )}
 
@@ -292,6 +281,16 @@ export default function RestaurantPage() {
 
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
+
+      {tenant.customize_order_enabled && (
+        <textarea
+          style={{ ...s.input, resize: "vertical", minHeight: 80, fontSize: 14 }}
+          placeholder="Special instructions (e.g. no onions, extra spicy, allergies...)"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+        />
+      )}
+
       <button style={{ ...s.orderBtn, opacity: queueFull ? 0.5 : 1 }} onClick={placeOrder} disabled={queueFull}>
         {queueFull ? "Kitchen busy — try again soon" : "Place order →"}
       </button>
@@ -322,7 +321,7 @@ export default function RestaurantPage() {
 
       {queueFull && (
         <div style={{ background: "#fff3cd", borderBottom: "1px solid #f59e0b", padding: "10px 16px", fontSize: 13, color: "#92400e", fontWeight: 600 }}>
-          ⏳ Kitchen is busy right now. You can browse but ordering is temporarily paused.
+          ⏳ Kitchen is busy right now. Ordering is temporarily paused.
         </div>
       )}
 
