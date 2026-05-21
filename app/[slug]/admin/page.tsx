@@ -69,7 +69,7 @@ export default function AdminPage() {
       setDineInEnabled(t?.dine_in_enabled ?? false);
       setEditOrderEnabled(t?.edit_order_enabled ?? false);
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
-
+ 
       await loadMenu();
       await loadOrders();
       setLoading(false);
