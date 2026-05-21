@@ -12,6 +12,7 @@ export default function KitchenPage() {
   const [tab, setTab] = useState("orders");
   const prevOrderIds = useRef(new Set());
   const audioCtx = useRef(null);
+  const soundEnabled = useRef(false);
 
   function playBeep() {
     try {
@@ -36,10 +37,9 @@ export default function KitchenPage() {
       .neq("status", "done").neq("status", "cancelled")
       .order("created_at", { ascending: true });
     if (data) {
-      const newIds = new Set(data.map(o => o.id));
       const hasNew = data.some(o => !prevOrderIds.current.has(o.id));
-      if (hasNew && prevOrderIds.current.size > 0) playBeep();
-      prevOrderIds.current = newIds;
+      if (hasNew && prevOrderIds.current.size > 0 && soundEnabled.current) playBeep();
+      prevOrderIds.current = new Set(data.map(o => o.id));
       setOrders(data);
     }
   }
@@ -78,6 +78,8 @@ export default function KitchenPage() {
     return () => clearInterval(interval);
   }, [slug]);
 
+  const [soundOn, setSoundOn] = useState(false);
+
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
       <p style={{ color: "#888" }}>Loading kitchen...</p>
@@ -106,7 +108,7 @@ export default function KitchenPage() {
     items: { fontSize: 14, margin: "0 0 6px", color: "#333" },
     total: { fontWeight: 700, fontSize: 15, margin: 0, color: primary },
     actionBtn: (status) => ({ padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, color: "white", background: statusColor[nextStatus[status]] || "#888", whiteSpace: "nowrap", flexShrink: 0 }),
-    cancelBtn: { padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12, color: "white", background: "#ef4444", whiteSpace: "nowrap", flexShrink: 0, marginTop: 8 },
+    cancelBtn: { padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12, color: "white", background: "#ef4444", whiteSpace: "nowrap", marginTop: 8 },
     empty: { textAlign: "center", padding: "60px 20px", color: "#888" },
     menuCard: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", border: "1px solid #eee", borderRadius: 12, marginBottom: 10, background: "white" },
     menuName: { fontWeight: 600, fontSize: 14, margin: "0 0 2px", color: "#111" },
@@ -119,9 +121,20 @@ export default function KitchenPage() {
       <div style={s.header}>
         <div>
           <p style={s.title}>🍳 Kitchen — {tenant?.name}</p>
-          <p style={s.subtitle}>Auto-refreshes every 8 seconds · beeps on new orders</p>
+          <p style={s.subtitle}>Auto-refreshes every 8 seconds</p>
         </div>
-        <button style={s.refreshBtn} onClick={() => { loadOrders(); loadMenu(); }}>Refresh</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={{ ...s.refreshBtn, background: soundOn ? "#dcfce7" : "#f3f4f6", color: soundOn ? "#16a34a" : "#111" }}
+            onClick={() => {
+              soundEnabled.current = true;
+              setSoundOn(true);
+              playBeep();
+            }}>
+            {soundOn ? "🔔 Sound on" : "🔕 Enable sound"}
+          </button>
+          <button style={s.refreshBtn} onClick={() => { loadOrders(); loadMenu(); }}>Refresh</button>
+        </div>
       </div>
 
       <div style={s.tabs}>

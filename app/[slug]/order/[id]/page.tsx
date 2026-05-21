@@ -42,20 +42,25 @@ export default function OrderTracking() {
   );
 
   const primary = tenant?.primary_color || "#ff4d00";
+  const isDineIn = order.order_type === "dine-in";
+  const isCancelled = order.status === "cancelled";
+  const isDone = order.status === "done";
 
   const steps = [
     { key: "new", label: "Order received", icon: "📋" },
     { key: "preparing", label: "Being prepared", icon: "👨‍🍳" },
-    { key: "ready", label: "Ready for pickup!", icon: "✅" },
+    { key: "ready", label: isDineIn ? "Delivered to table" : "Ready for pickup!", icon: isDineIn ? "🪑" : "✅" },
   ];
 
-  const currentStep = steps.findIndex(s => s.key === order.status);
+  const currentStep = isCancelled || isDone
+    ? -1
+    : steps.findIndex(s => s.key === order.status);
 
   const s = {
     wrap: { maxWidth: 420, margin: "0 auto", padding: "32px 16px", fontFamily: "sans-serif", minHeight: "100vh", background: "white", color: "#111" },
     header: { textAlign: "center", marginBottom: 32 },
     restaurantName: { fontSize: 14, color: "#888", margin: "0 0 8px" },
-    tokenBox: { background: primary, color: "white", borderRadius: 16, padding: "20px 32px", display: "inline-block", marginBottom: 8 },
+    tokenBox: { background: isCancelled ? "#ef4444" : primary, color: "white", borderRadius: 16, padding: "20px 32px", display: "inline-block", marginBottom: 8 },
     tokenLabel: { fontSize: 12, margin: "0 0 4px", opacity: 0.85 },
     tokenNum: { fontSize: 48, fontWeight: 900, margin: 0, letterSpacing: -2 },
     stepRow: { display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 24 },
@@ -82,37 +87,53 @@ export default function OrderTracking() {
       <div style={s.header}>
         <p style={s.restaurantName}>{tenant?.name}</p>
         <div style={s.tokenBox}>
-          <p style={s.tokenLabel}>Your token</p>
+          <p style={s.tokenLabel}>{isCancelled ? "Cancelled order" : "Your token"}</p>
           <p style={s.tokenNum}>#{order.id}</p>
         </div>
-        {order.status === "ready" && (
+
+        {isCancelled && (
+          <p style={{ color: "#ef4444", fontWeight: 700, fontSize: 16, marginTop: 8 }}>
+            ❌ Your order was cancelled. Please speak to staff.
+          </p>
+        )}
+        {isDone && (
+          <p style={{ color: "#16a34a", fontWeight: 700, fontSize: 16, marginTop: 8 }}>
+            ✅ {isDineIn ? "Enjoy your meal!" : "Order complete. Thank you!"}
+          </p>
+        )}
+        {order.status === "ready" && !isCancelled && (
           <p style={{ color: primary, fontWeight: 700, fontSize: 16, marginTop: 8 }}>
-            🎉 Your order is ready! Please collect it.
+            🎉 {isDineIn ? "Your order is ready — enjoy your meal!" : "Your order is ready! Please collect it."}
           </p>
         )}
       </div>
 
-      <div>
-        {steps.map((step, index) => {
-          const done = index < currentStep;
-          const active = index === currentStep;
-          return (
-            <div key={step.key} style={s.stepRow}>
-              <div style={s.stepIcon(active, done)}>
-                {done ? "✓" : step.icon}
+      {!isCancelled && !isDone && (
+        <div>
+          {steps.map((step, index) => {
+            const done = index < currentStep;
+            const active = index === currentStep;
+            return (
+              <div key={step.key} style={s.stepRow}>
+                <div style={s.stepIcon(active, done)}>
+                  {done ? "✓" : step.icon}
+                </div>
+                <div>
+                  <p style={s.stepLabel(active, done)}>{step.label}</p>
+                  {active && <p style={{ fontSize: 12, color: "#888", margin: 0 }}>In progress...</p>}
+                  {done && <p style={{ fontSize: 12, color: primary, margin: 0 }}>Done</p>}
+                </div>
               </div>
-              <div>
-                <p style={s.stepLabel(active, done)}>{step.label}</p>
-                {active && <p style={{ fontSize: 12, color: "#888", margin: 0 }}>In progress...</p>}
-                {done && <p style={{ fontSize: 12, color: primary, margin: 0 }}>Done</p>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={s.orderCard}>
         <p style={s.orderTitle}>ORDER SUMMARY</p>
+        {isDineIn && order.table_number && (
+          <p style={{ fontSize: 13, color: "#888", margin: "0 0 6px" }}>🪑 Dine-in · Table {order.table_number}</p>
+        )}
         <p style={s.orderItems}>{order.items}</p>
         <p style={s.orderTotal}>Total: ₹{order.total}</p>
       </div>
@@ -121,7 +142,9 @@ export default function OrderTracking() {
         ← Back to menu
       </a>
 
-      <p style={s.refreshNote}>Page refreshes automatically every 6 seconds</p>
+      {!isCancelled && !isDone && (
+        <p style={s.refreshNote}>Page refreshes automatically every 6 seconds</p>
+      )}
     </div>
   );
 }
