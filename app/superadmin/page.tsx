@@ -13,17 +13,15 @@ export default function SuperAdmin() {
   const [tab, setTab] = useState("restaurants");
 
   const [tenants, setTenants] = useState([]);
-  const [users, setUsers] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [allOrders, setAllOrders] = useState([]);
 
-  // New restaurant form
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
   const [newTagline, setNewTagline] = useState("");
   const [newColor, setNewColor] = useState("#ff4d00");
-  const [newUserEmail, setNewUserEmail] = useState("");
   const [newExpiry, setNewExpiry] = useState("");
+  const [copiedId, setCopiedId] = useState(null);
 
   useEffect(() => {
     async function checkAuth() {
@@ -52,39 +50,20 @@ export default function SuperAdmin() {
     setTenants(t ?? []);
     setSubscriptions(s ?? []);
     setAllOrders(o ?? []);
-
-    // Load users from auth — we'll match by user_id
-    const userIds = [...new Set((t ?? []).map(x => x.user_id).filter(Boolean))];
-    const userMap = {};
-    for (const id of userIds) {
-      const { data } = await supabase.from("tenants").select("user_id").eq("user_id", id).single();
-      if (data) userMap[id] = id;
-    }
-    setUsers(userIds);
   }
 
   async function createRestaurant() {
     if (!newSlug || !newName) return alert("Slug and name are required");
-
-    // Find user by email if provided
-    let userId = null;
-    if (newUserEmail) {
-      const { data: t } = await supabase.from("tenants").select("user_id").eq("user_id", newUserEmail).single();
-      // We can't look up auth users directly from client, so we'll match later
-    }
-
     const { error } = await supabase.from("tenants").insert([{
       slug: newSlug, name: newName, tagline: newTagline, primary_color: newColor,
     }]);
     if (error) return alert("Error: " + error.message);
-
     await supabase.from("subscriptions").insert([{
       tenant_slug: newSlug, status: "active",
       expires_at: newExpiry ? new Date(newExpiry).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     }]);
-
-    setNewSlug(""); setNewName(""); setNewTagline(""); setNewColor("#ff4d00"); setNewUserEmail(""); setNewExpiry("");
-    alert("Restaurant created! Link it to a user account in the Restaurants tab.");
+    setNewSlug(""); setNewName(""); setNewTagline(""); setNewColor("#ff4d00"); setNewExpiry("");
+    alert("Restaurant created! Link it to a user in the Restaurants tab.");
     await loadAll();
   }
 
@@ -114,6 +93,12 @@ export default function SuperAdmin() {
     const newDate = new Date(current.getTime() + days * 24 * 60 * 60 * 1000);
     await supabase.from("subscriptions").update({ status: "active", expires_at: newDate.toISOString() }).eq("tenant_slug", slug);
     await loadAll();
+  }
+
+  function copyToClipboard(text, id) {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   }
 
   if (loading) return (
@@ -160,7 +145,6 @@ export default function SuperAdmin() {
         <button style={s.btn("#888")} onClick={() => { supabase.auth.signOut(); window.location.href = "/login"; }}>Sign out</button>
       </div>
 
-      {/* Platform stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, margin: "20px 0 24px" }}>
         {[
           { label: "Restaurants", value: tenants.length },
@@ -225,7 +209,7 @@ export default function SuperAdmin() {
                       {sub ? `${isExpired ? "Expired" : "Active"} · ${expires?.toLocaleDateString("en-IN")}` : "No subscription"}
                     </p>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <a href={`/${t.slug}`} target="_blank" style={{ ...s.btn("#f3f4f6"), color: "#111", textDecoration: "none" }}>View</a>
                     <a href={`/${t.slug}/admin`} target="_blank" style={{ ...s.btn("#f3f4f6"), color: "#111", textDecoration: "none" }}>Admin</a>
                     <button style={s.btn("#ef4444")} onClick={() => deleteRestaurant(t.slug)}>Delete</button>
@@ -233,19 +217,44 @@ export default function SuperAdmin() {
                 </div>
 
                 <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 12 }}>
-                  <label style={s.label}>Linked user ID (paste from Supabase Auth)</label>
+                  <label style={s.label}>Linked user ID</label>
+
+                  {t.user_id ? (
+                    <div style={{ background: "#f3f4f6", borderRadius: 8, padding: "8px 12px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <p style={{ margin: 0, fontSize: 11, fontFamily: "monospace", color: "#555", wordBreak: "break-all", flex: 1 }}>{t.user_id}</p>
+                      <button style={{ ...s.btn(copiedId === t.slug ? "#16a34a" : "#888"), padding: "4px 10px", fontSize: 11, flexShrink: 0 }}
+                        onClick={() => copyToClipboard(t.user_id, t.slug)}>
+                        {copiedId === t.slug ? "✓ Copied" : "Copy"}
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 8px" }}>No user linked yet.</p>
+                  )}
+
+                  <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 6px" }}>
+                    Ask the owner to copy their User ID from their dashboard and paste it here.
+                  </p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
-                      style={{ ...s.input, marginBottom: 0, flex: 1, fontSize: 12 }}
-                      placeholder="User UUID or leave blank to unlink"
+                      style={{ ...s.input, marginBottom: 0, flex: 1, fontSize: 12, fontFamily: "monospace" }}
+                      placeholder="Paste user UUID here"
                       defaultValue={t.user_id ?? ""}
                       id={`user-${t.slug}`}
                     />
                     <button style={s.btn("#111")} onClick={() => {
                       const val = document.getElementById(`user-${t.slug}`).value.trim();
                       linkUser(t.slug, val);
-                    }}>Save</button>
+                    }}>Link</button>
                   </div>
+                  {t.user_id && (
+                    <button style={{ ...s.btn("#888"), marginTop: 6, padding: "6px 12px", fontSize: 12 }}
+                      onClick={() => {
+                        document.getElementById(`user-${t.slug}`).value = "";
+                        linkUser(t.slug, "");
+                      }}>
+                      Unlink user
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -269,7 +278,7 @@ export default function SuperAdmin() {
                       {sub ? `${sub.status?.toUpperCase()} · expires ${expires?.toLocaleDateString("en-IN")}` : "No subscription"}
                     </p>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <button style={s.btn("#16a34a")} onClick={() => extendSubscription(t.slug, 30)}>+30 days</button>
                     <button style={s.btn("#f59e0b")} onClick={() => extendSubscription(t.slug, 7)}>+7 days</button>
                     <button style={s.btn("#ef4444")} onClick={() => {

@@ -7,6 +7,7 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -25,6 +26,12 @@ export default function Dashboard() {
     window.location.href = "/login";
   }
 
+  function copyUID() {
+    navigator.clipboard.writeText(user.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   const s = {
     page: { fontFamily: "sans-serif", maxWidth: 480, margin: "0 auto", padding: "40px 20px", background: "white", minHeight: "100vh", color: "#111" },
     btn: (bg) => ({ padding: "12px 24px", background: bg, color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }),
@@ -41,8 +48,15 @@ export default function Dashboard() {
 
       {!tenant ? (
         <div style={{ textAlign: "center", padding: "40px 0" }}>
-          <p style={{ color: "#888", marginBottom: 16 }}>No restaurant linked to your account yet.</p>
-          <p style={{ fontSize: 13, color: "#aaa" }}>Contact support to get your restaurant set up.</p>
+          <p style={{ color: "#888", marginBottom: 8 }}>No restaurant linked to your account yet.</p>
+          <p style={{ fontSize: 13, color: "#aaa", marginBottom: 24 }}>Share your User ID with EchoTakeout support to get set up.</p>
+          <div style={{ background: "#f9f9f9", border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#888", margin: "0 0 8px" }}>YOUR USER ID</p>
+            <p style={{ fontSize: 12, color: "#555", wordBreak: "break-all", margin: "0 0 12px", fontFamily: "monospace" }}>{user.id}</p>
+            <button style={s.btn(copied ? "#16a34a" : "#111")} onClick={copyUID}>
+              {copied ? "✓ Copied!" : "Copy User ID"}
+            </button>
+          </div>
         </div>
       ) : (
         <div>
@@ -54,6 +68,15 @@ export default function Dashboard() {
               <a href={`/${tenant.slug}/admin`} style={{ ...s.btn("#ff4d00"), textDecoration: "none", display: "inline-block" }}>Admin panel</a>
               <a href={`/${tenant.slug}/kitchen`} style={{ ...s.btn("#16a34a"), textDecoration: "none", display: "inline-block" }}>Kitchen</a>
             </div>
+          </div>
+
+          <div style={{ background: "#f9f9f9", border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#888", margin: "0 0 4px" }}>YOUR USER ID</p>
+            <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 8px" }}>Share this with EchoTakeout support if you need help with your account.</p>
+            <p style={{ fontSize: 12, color: "#555", wordBreak: "break-all", margin: "0 0 12px", fontFamily: "monospace" }}>{user.id}</p>
+            <button style={{ ...s.btn(copied ? "#16a34a" : "#111"), padding: "8px 16px", fontSize: 13 }} onClick={copyUID}>
+              {copied ? "✓ Copied!" : "Copy User ID"}
+            </button>
           </div>
         </div>
       )}
