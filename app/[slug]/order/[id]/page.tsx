@@ -12,10 +12,17 @@ export default function OrderTracking() {
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [wrongRestaurant, setWrongRestaurant] = useState(false);
 
   async function loadOrder() {
     const { data } = await supabase.from("orders").select("*").eq("id", orderId).single();
-    if (data) setOrder(data);
+    if (data) {
+      if (data.tenant_slug !== slug) {
+        setWrongRestaurant(true);
+        return;
+      }
+      setOrder(data);
+    }
   }
 
   useEffect(() => {
@@ -33,28 +40,23 @@ export default function OrderTracking() {
   async function cancelOrder() {
     if (!confirm("Are you sure you want to cancel your order?")) return;
     setCancelling(true);
-    await supabase.from("orders").update({ status: "cancelled", edited: true }).eq("id", orderId);
+    await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderId);
     await loadOrder();
     setCancelling(false);
-  }
-
-  async function editOrder() {
-    // Store order info in sessionStorage and go back to menu
-    sessionStorage.setItem("editOrder", JSON.stringify({
-      id: order.id,
-      items: order.items,
-      name: order.customer_name,
-      phone: order.phone,
-      order_type: order.order_type,
-      table_number: order.table_number,
-      notes: order.notes,
-    }));
-    window.location.href = `/${slug}?edit=${order.id}`;
   }
 
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif" }}>
       <p style={{ color: "#888" }}>Loading...</p>
+    </div>
+  );
+
+  if (wrongRestaurant) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", fontFamily: "sans-serif", flexDirection: "column", textAlign: "center", padding: 24 }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+      <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Order not found</p>
+      <p style={{ color: "#888", fontSize: 14 }}>This order doesn't belong to this restaurant.</p>
+      <a href={`/${slug}`} style={{ marginTop: 20, color: "#ff4d00", fontWeight: 600, fontSize: 14 }}>← Back to menu</a>
     </div>
   );
 
@@ -69,7 +71,7 @@ export default function OrderTracking() {
   const isCancelled = order.status === "cancelled";
   const isDone = order.status === "done";
   const isNew = order.status === "new";
-  const canEdit = tenant?.edit_order_enabled && isNew;
+  const canCancel = tenant?.edit_order_enabled && isNew;
 
   const steps = [
     { key: "new", label: "Order received", icon: "📋" },
@@ -96,8 +98,7 @@ export default function OrderTracking() {
       color: active || done ? "#111" : "#aaa",
     }),
     orderCard: { background: "#f9f9f9", borderRadius: 12, padding: 16, marginTop: 24 },
-    editBtn: { width: "100%", padding: 12, background: "#f3f4f6", color: "#111", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 12 },
-    cancelBtn: { width: "100%", padding: 12, background: "white", color: "#ef4444", border: "2px solid #ef4444", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 8 },
+    cancelBtn: { width: "100%", padding: 12, background: "white", color: "#ef4444", border: "2px solid #ef4444", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 12 },
   };
 
   return (
@@ -108,9 +109,6 @@ export default function OrderTracking() {
           <p style={s.tokenLabel}>{isCancelled ? "Cancelled order" : "Your token"}</p>
           <p style={s.tokenNum}>#{order.id}</p>
         </div>
-        {order.edited && !isCancelled && (
-          <p style={{ color: "#f59e0b", fontWeight: 700, fontSize: 13, marginTop: 4 }}>✏️ This order was edited</p>
-        )}
         {isCancelled && <p style={{ color: "#ef4444", fontWeight: 700, fontSize: 16, marginTop: 8 }}>❌ Your order was cancelled. Please speak to staff.</p>}
         {isDone && <p style={{ color: "#16a34a", fontWeight: 700, fontSize: 16, marginTop: 8 }}>✅ {isDineIn ? "Enjoy your meal!" : "Order complete. Thank you!"}</p>}
         {order.status === "ready" && <p style={{ color: primary, fontWeight: 700, fontSize: 16, marginTop: 8 }}>🎉 {isDineIn ? "Your order is ready — enjoy your meal!" : "Your order is ready! Please collect it."}</p>}
@@ -150,13 +148,12 @@ export default function OrderTracking() {
         <p style={{ fontSize: 15, fontWeight: 700, color: primary, margin: 0 }}>Total: ₹{order.total}</p>
       </div>
 
-      {canEdit && (
+      {canCancel && (
         <>
-          <button style={s.editBtn} onClick={editOrder}>✏️ Edit my order</button>
           <button style={s.cancelBtn} onClick={cancelOrder} disabled={cancelling}>
             {cancelling ? "Cancelling..." : "✕ Cancel my order"}
           </button>
-          <p style={{ fontSize: 11, color: "#aaa", textAlign: "center", marginTop: 8 }}>You can only edit or cancel while your order hasn't started preparing.</p>
+          <p style={{ fontSize: 11, color: "#aaa", textAlign: "center", marginTop: 8 }}>You can only cancel while your order hasn't started preparing.</p>
         </>
       )}
 

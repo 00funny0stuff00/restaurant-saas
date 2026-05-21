@@ -11,6 +11,7 @@ export default function KitchenPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("orders");
   const [soundOn, setSoundOn] = useState(false);
+  const [cancelPopups, setCancelPopups] = useState([]);
   const prevOrderIds = useRef(new Set());
   const prevOrderStates = useRef({});
   const audioCtx = useRef(null);
@@ -33,7 +34,6 @@ export default function KitchenPage() {
           osc.stop(ctx.currentTime + offset + 0.2);
         });
       } else {
-        // Lower tone for edit/cancel
         [0, 0.3].forEach(offset => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
@@ -55,26 +55,28 @@ export default function KitchenPage() {
       .neq("status", "done")
       .order("created_at", { ascending: true });
     if (data) {
-      const hasNew = data.some(o => o.status !== "cancelled" && !prevOrderIds.current.has(o.id));
       const isFirstLoad = prevOrderIds.current.size === 0;
+      const hasNew = data.some(o => o.status !== "cancelled" && !prevOrderIds.current.has(o.id));
 
-      // Check for edits or cancellations
-      let hasEditOrCancel = false;
+      // Detect newly cancelled orders and add popups
+      const newCancellations = [];
       data.forEach(o => {
         const prev = prevOrderStates.current[o.id];
-        if (prev && (o.edited && !prev.edited)) hasEditOrCancel = true;
-        if (prev && o.status === "cancelled" && prev.status !== "cancelled") hasEditOrCancel = true;
+        if (prev && o.status === "cancelled" && prev.status !== "cancelled") {
+          newCancellations.push(o);
+        }
       });
 
-      prevOrderIds.current = new Set(data.filter(o => o.status !== "cancelled").map(o => o.id));
-      data.forEach(o => { prevOrderStates.current[o.id] = { edited: o.edited, status: o.status }; });
-
-      setOrders(data.filter(o => o.status !== "done" && o.status !== "cancelled"));
-
-      if (!isFirstLoad && soundEnabled.current) {
-        if (hasNew) playBeep("new");
-        else if (hasEditOrCancel) playBeep("edit");
+      if (newCancellations.length > 0 && !isFirstLoad) {
+        setCancelPopups(prev => [...prev, ...newCancellations]);
+        if (soundEnabled.current) playBeep("edit");
+      } else if (hasNew && !isFirstLoad && soundEnabled.current) {
+        playBeep("new");
       }
+
+      prevOrderIds.current = new Set(data.filter(o => o.status !== "cancelled").map(o => o.id));
+      data.forEach(o => { prevOrderStates.current[o.id] = { status: o.status }; });
+      setOrders(data.filter(o => o.status !== "done" && o.status !== "cancelled"));
     }
   }
 
@@ -132,8 +134,9 @@ export default function KitchenPage() {
     tabs: { display: "flex", gap: 8, marginBottom: 16 },
     tab: (active) => ({ padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14, background: active ? primary : "#f3f4f6", color: active ? "white" : "#555" }),
     card: (order) => ({
-      border: order.edited ? "2px solid #f59e0b" : order.notes ? "2px solid #8b5cf6" : "1px solid #eee",
-      borderRadius: 12, padding: 16, marginBottom: 12, background: order.edited ? "#fffbeb" : order.notes ? "#faf5ff" : "white"
+      border: order.notes ? "2px solid #8b5cf6" : "1px solid #eee",
+      borderRadius: 12, padding: 16, marginBottom: 12,
+      background: order.notes ? "#faf5ff" : "white"
     }),
     badge: (status) => ({ display: "inline-block", padding: "3px 10px", borderRadius: 20, color: "white", fontSize: 11, fontWeight: 700, marginBottom: 10, background: statusColor[status] || "#888" }),
     row: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
@@ -153,6 +156,37 @@ export default function KitchenPage() {
 
   return (
     <div style={s.wrap}>
+
+      {/* Cancellation popups */}
+      {cancelPopups.map((o, i) => (
+        <div key={o.id} style={{
+          position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16
+        }}>
+          <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 400, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 28 }}>❌</span>
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 18, color: "#ef4444" }}>Order Cancelled!</p>
+                <p style={{ margin: 0, fontSize: 13, color: "#888" }}>Token #{o.id} — {o.customer_name}</p>
+              </div>
+            </div>
+            <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 700, color: "#ef4444" }}>CANCELLED ITEMS</p>
+              <p style={{ margin: 0, fontSize: 14, color: "#333" }}>{o.items}</p>
+              {o.order_type === "dine-in" && o.table_number && (
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#888" }}>🪑 Table {o.table_number}</p>
+              )}
+            </div>
+            <button
+              style={{ width: "100%", padding: 14, background: "#ef4444", color: "white", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+              onClick={() => setCancelPopups(prev => prev.filter((_, idx) => idx !== i))}>
+              ✓ Noted
+            </button>
+          </div>
+        </div>
+      ))}
+
       <div style={s.header}>
         <div>
           <p style={s.title}>🍳 Kitchen — {tenant?.name}</p>
@@ -187,7 +221,6 @@ export default function KitchenPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <span style={s.badge(order.status)}>{order.status?.toUpperCase()}</span>
-                  {order.edited && <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: "#f59e0b", color: "white", fontSize: 11, fontWeight: 700 }}>✏️ EDITED</span>}
                   {order.notes && <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: "#8b5cf6", color: "white", fontSize: 11, fontWeight: 700 }}>⭐ CUSTOMIZED</span>}
                 </div>
                 <span style={{ fontSize: 13, color: "#888" }}>#{order.id}</span>
