@@ -101,6 +101,24 @@ export default function OrderTracking() {
     cancelBtn: { width: "100%", padding: 12, background: "white", color: "#ef4444", border: "2px solid #ef4444", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 12 },
   };
 
+  const trackingUrl = `https://restaurant-saas-vert.vercel.app/${slug}/order/${order.id}`;
+  const kotMessage = `🧾 *${tenant?.name} — Order Confirmed!*
+
+Token: *#${order.id}*
+${isDineIn && order.table_number ? `Table: ${order.table_number}
+` : ""}Items: ${order.items}
+Total: ₹${order.total}
+
+Track your order 👉 ${trackingUrl}`;
+
+  function openWhatsApp() {
+    window.open(`https://wa.me/?text=${encodeURIComponent(kotMessage)}`, "_blank");
+  }
+
+  function openSMS() {
+    window.open(`sms:?&body=${encodeURIComponent(kotMessage)}`, "_blank");
+  }
+
   return (
     <div style={s.wrap}>
       <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -147,6 +165,29 @@ export default function OrderTracking() {
         )}
         <p style={{ fontSize: 15, fontWeight: 700, color: primary, margin: 0 }}>Total: ₹{order.total}</p>
       </div>
+
+      {/* Share buttons */}
+      {!isCancelled && (
+        <div style={{ marginTop: 16 }}>
+          <p style={{ fontSize: 12, color: "#aaa", textAlign: "center", margin: "0 0 10px" }}>Share your KOT</p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={openWhatsApp}
+              style={{ flex: 1, padding: "12px 0", background: "#25D366", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.136.562 4.14 1.541 5.875L0 24l6.294-1.518A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.8 9.8 0 01-5.006-1.371l-.36-.214-3.733.9.934-3.638-.235-.374A9.818 9.818 0 1112 21.818z"/></svg>
+              WhatsApp
+            </button>
+            <button
+              onClick={openSMS}
+              style={{ flex: 1, padding: "12px 0", background: "#111", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+              SMS
+            </button>
+          </div>
+        </div>
+      )}
 
       {canCancel && (
         <>

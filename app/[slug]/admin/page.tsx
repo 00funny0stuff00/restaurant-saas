@@ -32,6 +32,8 @@ export default function AdminPage() {
   const [queueLimit, setQueueLimit] = useState(10);
   const [dineInEnabled, setDineInEnabled] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [kitchenPin, setKitchenPin] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -69,6 +71,7 @@ export default function AdminPage() {
       setDineInEnabled(t?.dine_in_enabled ?? false);
       setEditOrderEnabled(t?.edit_order_enabled ?? false);
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
+      setKitchenPin(t?.kitchen_pin ?? "");
  
       await loadMenu();
       await loadOrders();
@@ -154,6 +157,14 @@ export default function AdminPage() {
     a.download = `orders-${slug}-${filterDate || "all"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function saveKitchenPin() {
+    if (!kitchenPin.trim()) return alert("Please enter a PIN.");
+    setSavingPin(true);
+    await supabase.from("tenants").update({ kitchen_pin: kitchenPin }).eq("slug", slug);
+    setSavingPin(false);
+    alert("Kitchen PIN saved!");
   }
 
   async function handleLogout() {
@@ -287,6 +298,24 @@ export default function AdminPage() {
           <button style={s.btn(primary)} onClick={saveSettings} disabled={savingSettings}>
             {savingSettings ? "Saving..." : "Save settings"}
           </button>
+
+          <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #f0f0f0" }}>
+            <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>Kitchen PIN</h3>
+            <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Kitchen staff enter this PIN to access the kitchen display. Keep it private.</p>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input
+                type="text"
+                value={kitchenPin}
+                onChange={e => setKitchenPin(e.target.value)}
+                placeholder="e.g. 1234"
+                maxLength={8}
+                style={{ ...s.input, width: 140, textAlign: "center", fontSize: 18, letterSpacing: 4, marginBottom: 0 }}
+              />
+              <button style={s.btn(primary)} onClick={saveKitchenPin} disabled={savingPin}>
+                {savingPin ? "Saving..." : "Save PIN"}
+              </button>
+            </div>
+          </div>
 
         </div>
       )}

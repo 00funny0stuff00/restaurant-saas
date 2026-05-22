@@ -60,6 +60,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div>
+          {/* Restaurant info + quick links */}
           <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 20, marginBottom: 16 }}>
             <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 18 }}>{tenant.name}</p>
             <p style={{ margin: "0 0 16px", color: "#888", fontSize: 13 }}>{tenant.tagline}</p>
@@ -70,6 +71,18 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* QR Code for dashboard */}
+          <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 20, marginBottom: 16, textAlign: "center" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#555", margin: "0 0 14px", textAlign: "left" }}>📱 DASHBOARD QR CODE</p>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent("https://restaurant-saas-vert.vercel.app/dashboard")}`}
+              alt="Dashboard QR Code"
+              style={{ borderRadius: 10, display: "block", margin: "0 auto 12px" }}
+            />
+            <p style={{ fontSize: 12, color: "#aaa", margin: 0 }}>Scan to open your dashboard on any device</p>
+          </div>
+
+          {/* User ID */}
           <div style={{ background: "#f9f9f9", border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: "#888", margin: "0 0 4px" }}>YOUR USER ID</p>
             <p style={{ fontSize: 11, color: "#aaa", margin: "0 0 8px" }}>Share this with EchoTakeout support if you need help with your account.</p>

@@ -17,6 +17,20 @@ export default function KitchenPage() {
   const audioCtx = useRef(null);
   const soundEnabled = useRef(false);
 
+  // Auth check — must be first effect
+  useEffect(() => {
+    const s = window.location.pathname.split("/")[1];
+    const authed = sessionStorage.getItem(`kitchen_auth_${s}`);
+    if (!authed) {
+      // Also allow if user is signed in via Google (supabase session)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) {
+          window.location.href = `/${s}/kitchen/login`;
+        }
+      });
+    }
+  }, []);
+
   function playBeep(type = "new") {
     try {
       if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -99,6 +113,12 @@ export default function KitchenPage() {
   async function toggleStock(id, currentStock) {
     await supabase.from("menu_items").update({ in_stock: !currentStock }).eq("id", id);
     loadMenu();
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem(`kitchen_auth_${slug}`);
+    supabase.auth.signOut();
+    window.location.href = `/${slug}/kitchen/login`;
   }
 
   useEffect(() => {
@@ -192,13 +212,14 @@ export default function KitchenPage() {
           <p style={s.title}>🍳 Kitchen — {tenant?.name}</p>
           <p style={s.subtitle}>Auto-refreshes every 8 seconds</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             style={{ ...s.refreshBtn, background: soundOn ? "#dcfce7" : "#f3f4f6", color: soundOn ? "#16a34a" : "#111" }}
             onClick={() => { soundEnabled.current = true; setSoundOn(true); playBeep("new"); }}>
             {soundOn ? "🔔 Sound on" : "🔕 Enable sound"}
           </button>
           <button style={s.refreshBtn} onClick={() => { loadOrders(); loadMenu(); }}>Refresh</button>
+          <button style={{ ...s.refreshBtn, color: "#ef4444" }} onClick={handleLogout}>Log out</button>
         </div>
       </div>
 
