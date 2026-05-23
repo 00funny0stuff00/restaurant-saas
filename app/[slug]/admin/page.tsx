@@ -145,11 +145,28 @@ export default function AdminPage() {
       "Type": o.order_type ?? "takeaway",
       "Table": o.table_number ?? "-",
       "Items": o.items,
-      "Total (₹)": o.total,
       "Status": o.status,
+      "Revenue (₹)": o.status === "cancelled" ? 0 : o.total,
     }));
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.join(","), ...rows.map(r => headers.map(h => `"${r[h]}"`).join(","))].join("\n");
+
+    const cancelled = filteredOrders.filter(o => o.status === "cancelled").length;
+    const netRevenue = filteredOrders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
+
+    const summaryRow = {
+      "Order ID": "SUMMARY",
+      "Date": "",
+      "Customer": `Total: ${filteredOrders.length} orders`,
+      "Phone": "",
+      "Type": "",
+      "Table": "",
+      "Items": `Cancelled: ${cancelled}`,
+      "Status": "",
+      "Revenue (₹)": `Net revenue: ₹${netRevenue.toFixed(2)}`,
+    };
+
+    const allRows = [...rows, summaryRow];
+    const headers = Object.keys(allRows[0]);
+    const csv = [headers.join(","), ...allRows.map(r => headers.map(h => `"${r[h]}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -192,7 +209,9 @@ export default function AdminPage() {
   const filteredOrders = filterDate
     ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
     : orders;
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.total, 0);
+  const cancelledOrders = filteredOrders.filter(o => o.status === "cancelled");
+  const paidOrders = filteredOrders.filter(o => o.status !== "cancelled");
+  const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
   const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
 
   const getSubWarning = () => {
@@ -352,7 +371,10 @@ export default function AdminPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
             <div>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>{filteredOrders.length} orders</p>
-              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#888" }}>Total revenue: ₹{totalRevenue.toFixed(2)}</p>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#888" }}>Revenue: ₹{totalRevenue.toFixed(2)}</p>
+              {cancelledOrders.length > 0 && (
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#ef4444" }}>{cancelledOrders.length} order{cancelledOrders.length > 1 ? "s" : ""} cancelled</p>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }} />

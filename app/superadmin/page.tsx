@@ -133,7 +133,8 @@ export default function SuperAdmin() {
     label: { fontSize: 12, fontWeight: 600, color: "#888", marginBottom: 4, display: "block" },
   };
 
-  const totalRevenue = allOrders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+  const cancelledCount = allOrders.filter(o => o.status === "cancelled").length;
+  const totalRevenue = allOrders.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + (o.total ?? 0), 0);
 
   return (
     <div style={s.page}>
@@ -307,7 +308,12 @@ export default function SuperAdmin() {
       {tab === "orders" && (
         <div>
           <h3 style={{ fontWeight: 700, marginBottom: 4 }}>All orders (last 200)</h3>
-          <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>Total revenue across all restaurants: ₹{totalRevenue.toFixed(2)}</p>
+          <p style={{ color: "#888", fontSize: 13, marginBottom: cancelledCount > 0 ? 4 : 16 }}>
+            Revenue across all restaurants: ₹{totalRevenue.toFixed(2)}
+          </p>
+          {cancelledCount > 0 && (
+            <p style={{ color: "#ef4444", fontSize: 12, marginBottom: 16 }}>{cancelledCount} cancelled order{cancelledCount > 1 ? "s" : ""} excluded</p>
+          )}
           {allOrders.map(order => (
             <div key={order.id} style={{ ...s.card, padding: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
