@@ -133,8 +133,23 @@ export default function RestaurantPage() {
     }]).select().single();
 
     if (error) { alert("Something went wrong."); return; }
-    setOrderNumber(data.id);
-    setScreen("success");
+setOrderNumber(data.id);
+setScreen("success");
+
+// Notify kitchen
+fetch("https://iklseexyzfqkgfuyvfjg.supabase.co/functions/v1/notify-kitchen", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    tenant_slug: slug,
+    order_id: data.id,
+    customer_name: name,
+    items: itemsSummary,
+    total,
+    order_type: orderType,
+    table_number: tableNumber || null,
+  }),
+});
   };
 
   if (loading) return (
