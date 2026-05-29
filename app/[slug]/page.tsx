@@ -136,20 +136,24 @@ export default function RestaurantPage() {
 setOrderNumber(data.id);
 setScreen("success");
 
-// Notify kitchen
-fetch("https://iklseexyzfqkgfuyvfjg.supabase.co/functions/v1/notify-kitchen", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    tenant_slug: slug,
-    order_id: data.id,
-    customer_name: name,
-    items: itemsSummary,
-    total,
-    order_type: orderType,
-    table_number: tableNumber || null,
-  }),
-});
+try {
+  await fetch("https://iklseexyzfqkgfuyvfjg.supabase.co/functions/v1/notify-kitchen", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbHNlZXh5emZxa2dmdXl2ZmpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwNjU3NzEsImV4cCI6MjA2MDY0MTc3MX0.DP3T5lxoGGOdTYbKMUHQBqpBrBvjpFEEGBTHzRrqAkg"
+    },
+    body: JSON.stringify({
+      tenant_slug: slug,
+      order_id: data.id,
+      customer_name: name,
+      items: itemsSummary,
+      total: total,
+      order_type: orderType,
+      table_number: tableNumber || null,
+    }),
+  });
+} catch (e) {}
   };
 
   if (loading) return (
