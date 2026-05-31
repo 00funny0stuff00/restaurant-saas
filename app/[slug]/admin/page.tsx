@@ -203,6 +203,7 @@ export default function AdminPage() {
     { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
     { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
     { label: "Admin", desc: "Quick access to your admin panel", url: `${base}/${slug}/admin`, icon: "⚙️" },
+    { label: "Dashboard", desc: "Quick access to your owner dashboard", url: `${base}/dashboard`, icon: "📊" },
   ];
 
   const primary = tenant?.primary_color ?? "#ff4d00";
