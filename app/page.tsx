@@ -142,6 +142,8 @@ export default function LandingPage() {
           <a href="/terms" style={s.link}>Terms of Service</a>
           <a href="/refund" style={s.link}>Cancellation & Refund Policy</a>
           <a href="/contact" style={s.link}>Contact Us</a>
+          <a href="/about" style={s.link}>About Us</a>
+          <a href="/pricing" style={s.link}>Pricing</a>
         </div>
 
         <p style={{ margin: "4px 0" }}>© {new Date().getFullYear()} EchoTakeout. All rights reserved.</p>
