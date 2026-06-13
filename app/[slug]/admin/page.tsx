@@ -35,6 +35,12 @@ export default function AdminPage() {
   const [kitchenPin, setKitchenPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
+  // Payments (SaaS Readiness for Razorpay Compliance)
+  const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(false);
+  const [razorpayMerchantId, setRazorpayMerchantId] = useState("");
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [savingPayments, setSavingPayments] = useState(false);
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -72,6 +78,10 @@ export default function AdminPage() {
       setEditOrderEnabled(t?.edit_order_enabled ?? false);
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       setKitchenPin(t?.kitchen_pin ?? "");
+
+      // Load Payment Configurations from Database
+      setOnlinePaymentsEnabled(t?.online_payments_enabled ?? false);
+      setRazorpayMerchantId(t?.razorpay_merchant_id ?? "");
  
       await loadMenu();
       await loadOrders();
@@ -99,20 +109,27 @@ export default function AdminPage() {
 
   async function saveSettings() {
     setSavingSettings(true);
-    await supabase.from("tenants").update({
+    const { error } = await supabase.from("tenants").update({
       queue_limit_enabled: queueLimitEnabled,
       queue_limit: queueLimit,
       dine_in_enabled: dineInEnabled,
+      edit_order_enabled: editOrderEnabled,
+      customize_order_enabled: customizeOrderEnabled,
     }).eq("slug", slug);
     setSavingSettings(false);
+    if (error) return alert("Error saving settings.");
     alert("Settings saved!");
-    await supabase.from("tenants").update({
-       queue_limit_enabled: queueLimitEnabled,
-       queue_limit: queueLimit,
-       dine_in_enabled: dineInEnabled,
-       edit_order_enabled: editOrderEnabled,
-       customize_order_enabled: customizeOrderEnabled,
+  }
+
+  // Save changes to Cash / Online payment options
+  async function savePayments() {
+    setSavingPayments(true);
+    const { error } = await supabase.from("tenants").update({
+      online_payments_enabled: onlinePaymentsEnabled,
     }).eq("slug", slug);
+    setSavingPayments(false);
+    if (error) return alert("Error saving payment options.");
+    alert("Payment options saved!");
   }
 
   async function addItem() {
@@ -272,10 +289,12 @@ export default function AdminPage() {
       </div>
       <a href={`/${slug}`} style={{ fontSize: 13, color: "#888" }}>← View live menu</a>
 
+      {/* Admin Tab Navigation */}
       <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" }}>
         <button style={s.tab(tab === "menu")} onClick={() => setTab("menu")}>Menu Items</button>
         <button style={s.tab(tab === "orders")} onClick={() => setTab("orders")}>Orders</button>
         <button style={s.tab(tab === "qr")} onClick={() => setTab("qr")}>QR Codes</button>
+        <button style={s.tab(tab === "payments")} onClick={() => setTab("payments")}>Payments</button>
         <button style={s.tab(tab === "settings")} onClick={() => setTab("settings")}>Settings</button>
         <button style={s.tab(tab === "restaurant")} onClick={() => setTab("restaurant")}>Info</button>
       </div>
@@ -292,6 +311,94 @@ export default function AdminPage() {
             <span style={{ fontSize: 14, color: "#555" }}>{tColor}</span>
           </div>
           <button style={s.btn(primary)} onClick={saveTenant}>Save changes</button>
+        </div>
+      )}
+
+      {tab === "payments" && (
+        <div>
+          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
+
+          <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+            Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this defaults checkout to counter payments.
+          </p>
+
+          <button style={{ ...s.btn(primary), marginBottom: 24 }} onClick={savePayments} disabled={savingPayments}>
+            {savingPayments ? "Saving..." : "Save Payment Options"}
+          </button>
+
+          <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 24, marginTop: 12 }}>
+            <h3 style={{ fontWeight: 700, marginBottom: 6, fontSize: 16 }}>Razorpay OAuth Connection</h3>
+            <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>
+              Connect your own Razorpay Business account. Customer funds will settle directly into your bank account. EchoTakeout does not charge platform commission on transactions.
+            </p>
+
+            {razorpayMerchantId ? (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, color: "#16a34a", fontSize: 14 }}>✓ Connected to Razorpay</p>
+                  <p style={{ margin: "2px 0 0", color: "#15803d", fontSize: 12, fontFamily: "monospace" }}>Merchant ID: {razorpayMerchantId}</p>
+                </div>
+                <button 
+                  style={{ ...s.btn("#dc2626"), padding: "8px 14px", fontSize: 12 }} 
+                  onClick={async () => {
+                    if (!confirm("Are you sure you want to disconnect your Razorpay account?")) return;
+                    await supabase.from("tenants").update({ razorpay_merchant_id: null, online_payments_enabled: false }).eq("slug", slug);
+                    setRazorpayMerchantId("");
+                    setOnlinePaymentsEnabled(false);
+                    alert("Disconnected!");
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div style={{ background: "#f9f9f9", border: "1px solid #eee", borderRadius: 10, padding: 20, textAlign: "center" }}>
+                <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 16px" }}>Receive payments directly to your business</p>
+                
+                {/* Razorpay Styled Integration Button */}
+                <button 
+                  style={{ 
+                    background: "#002970", 
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: 6, 
+                    padding: "12px 24px", 
+                    fontWeight: 700, 
+                    fontSize: 14, 
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10
+                  }}
+                  onClick={() => setShowConnectModal(true)}
+                >
+                  <span>💳</span> Connect with Razorpay
+                </button>
+                <p style={{ fontSize: 11, color: "#aaa", margin: "12px 0 0" }}>Secure, encrypted connection powered by Razorpay Partner OAuth API</p>
+              </div>
+            )}
+          </div>
+
+          {/* Secure Partner Verification Modal (For Compliance Audits) */}
+          {showConnectModal && (
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, padding: 20 }}>
+              <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                <h4 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700 }}>Connection Status</h4>
+                <p style={{ fontSize: 13, color: "#555", lineHeight: 1.5, margin: "0 0 20px" }}>
+                  OAuth automated setup is currently under review by our payment partners. To register your restaurant's custom Razorpay accounts, please contact our onboarding support team:
+                </p>
+                <div style={{ background: "#f5f5f5", borderRadius: 8, padding: 12, marginBottom: 20, fontSize: 13 }}>
+                  <p style={{ margin: "0 0 4px", fontWeight: 600 }}>📧 Onboarding Desk</p>
+                  <p style={{ margin: 0, color: "#ff4d00", fontWeight: 700 }}>onboarding@echotakeout.in</p>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button style={s.btn("#111")} onClick={() => setShowConnectModal(false)}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -336,7 +443,6 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
-
         </div>
       )}
 

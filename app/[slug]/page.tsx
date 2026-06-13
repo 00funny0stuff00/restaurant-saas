@@ -12,6 +12,20 @@ function lighten(hex, amount = 0.88) {
   return `rgb(${blend(r)}, ${blend(g)}, ${blend(b)})`;
 }
 
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function RestaurantPage() {
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
   const [cart, setCart] = useState([]);
@@ -19,6 +33,7 @@ export default function RestaurantPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [orderType, setOrderType] = useState("takeaway");
+  const [paymentMethod, setPaymentMethod] = useState("online"); // defaults to online payment
   const [tableNumber, setTableNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([]);
@@ -29,6 +44,7 @@ export default function RestaurantPage() {
   const [orderNumber, setOrderNumber] = useState(null);
   const [offline, setOffline] = useState(false);
   const [queueFull, setQueueFull] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -123,37 +139,126 @@ export default function RestaurantPage() {
       return;
     }
 
+    setProcessingPayment(true);
     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
+    
+    // Create initial order record with state depending on cash/counter or online choice
+    const initialStatus = paymentMethod === "online" ? "pending_payment" : "new";
+
     const { data, error } = await supabase.from("orders").insert([{
       customer_name: name, phone, items: itemsSummary, total,
-      status: "new", tenant_slug: slug,
+      status: initialStatus, tenant_slug: slug,
       order_type: orderType,
       table_number: orderType === "dine-in" ? tableNumber : null,
       notes: notes || null,
     }]).select().single();
 
-    if (error) { alert("Something went wrong."); return; }
-setOrderNumber(data.id);
-setScreen("success");
+    if (error) { 
+      setProcessingPayment(false); 
+      alert("Something went wrong."); 
+      return; 
+    }
 
-try {
-  await fetch("https://iklseexyzfqkgfuyvfjg.supabase.co/functions/v1/notify-kitchen", {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbHNlZXh5emZxa2dmdXl2ZmpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwNjU3NzEsImV4cCI6MjA2MDY0MTc3MX0.DP3T5lxoGGOdTYbKMUHQBqpBrBvjpFEEGBTHzRrqAkg"
-    },
-    body: JSON.stringify({
-      tenant_slug: slug,
-      order_id: data.id,
-      customer_name: name,
-      items: itemsSummary,
-      total: total,
-      order_type: orderType,
-      table_number: tableNumber || null,
-    }),
-  });
-} catch (e) {}
+    // SCENARIO A: Cash/Counter payment method selected
+    if (paymentMethod === "counter") {
+      setOrderNumber(data.id);
+      setScreen("success");
+      setProcessingPayment(false);
+
+      try {
+        await fetch("https://iklseexyzfqkgfuyvfjg.supabase.co/functions/v1/notify-kitchen", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbHNlZXh5emZxa2dmdXl2ZmpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwNjU3NzEsImV4cCI6MjA2MDY0MTc3MX0.DP3T5lxoGGOdTYbKMUHQBqpBrBvjpFEEGBTHzRrqAkg"
+          },
+          body: JSON.stringify({
+            tenant_slug: slug,
+            order_id: data.id,
+            customer_name: name,
+            items: itemsSummary,
+            total: total,
+            order_type: orderType,
+            table_number: tableNumber || null,
+          }),
+        });
+      } catch (e) {}
+      return;
+    }
+
+    // SCENARIO B: Razorpay Online payment method selected
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded) {
+      setProcessingPayment(false);
+      alert("Failed to load Razorpay payment SDK. Please check your internet connection.");
+      return;
+    }
+
+    try {
+      const orderRes = await fetch("/api/razorpay/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: total, orderId: data.id }),
+      });
+      const razorpayOrder = await orderRes.json();
+
+      if (razorpayOrder.error) throw new Error(razorpayOrder.error);
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: Math.round(total * 100),
+        currency: "INR",
+        name: tenant?.name || "EchoKitchen",
+        description: `Token Number #${data.id}`,
+        order_id: razorpayOrder.id,
+        handler: async function (response) {
+          try {
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: data.id,
+                tenantSlug: slug,
+              }),
+            });
+            const verifyResult = await verifyRes.json();
+
+            if (verifyResult.success) {
+              setOrderNumber(data.id);
+              setScreen("success");
+            } else {
+              alert("Payment verification failed. Please show staff your proof of payment.");
+            }
+          } catch (err) {
+            alert("Error verifying payment.");
+          } finally {
+            setProcessingPayment(false);
+          }
+        },
+        prefill: {
+          name: name,
+          contact: phone,
+        },
+        theme: {
+          color: primary,
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessingPayment(false);
+          }
+        }
+      };
+
+      const paymentWindow = new window.Razorpay(options);
+      paymentWindow.open();
+    } catch (err) {
+      setProcessingPayment(false);
+      alert("Error initiating Razorpay. Please choose Pay at Counter or try again.");
+      console.error(err);
+    }
   };
 
   if (loading) return (
@@ -228,7 +333,7 @@ try {
         <a href={`/${slug}/order/${orderNumber}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
           Track your order →
         </a>
-        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); setNotes(""); }}>
+        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); setPaymentMethod("online"); setNotes(""); }}>
           Order again
         </button>
       </div>
@@ -298,6 +403,15 @@ try {
         <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
       )}
 
+      {/* Payment Selection Selector */}
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Method</p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={s.typeBtn(paymentMethod === "online")} onClick={() => setPaymentMethod("online")}>💳 Pay Online</button>
+          <button style={s.typeBtn(paymentMethod === "counter")} onClick={() => setPaymentMethod("counter")}>💵 Pay at Counter</button>
+        </div>
+      </div>
+
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
@@ -310,8 +424,8 @@ try {
         />
       )}
 
-      <button style={{ ...s.orderBtn, opacity: queueFull ? 0.5 : 1 }} onClick={placeOrder} disabled={queueFull}>
-        {queueFull ? "Kitchen busy — try again soon" : "Place order →"}
+      <button style={{ ...s.orderBtn, opacity: (queueFull || processingPayment) ? 0.5 : 1 }} onClick={placeOrder} disabled={queueFull || processingPayment}>
+        {processingPayment ? "Processing..." : queueFull ? "Kitchen busy — try again soon" : "Place order →"}
       </button>
     </div>
   );

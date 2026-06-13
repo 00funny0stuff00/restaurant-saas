@@ -32,23 +32,25 @@ export default function LandingPage() {
     pricingAmount: { fontSize: 52, fontWeight: 900, color: "#ff4d00", letterSpacing: -2 },
     pricingPer: { fontSize: 16, color: "#888", marginBottom: 24 },
     pricingFeature: { fontSize: 14, color: "#444", marginBottom: 10, textAlign: "left" },
-    footer: { borderTop: "1px solid #eee", padding: "32px 24px", textAlign: "center", color: "#aaa", fontSize: 13 },
+    footer: { borderTop: "1px solid #eee", padding: "48px 24px", textAlign: "center", color: "#666", fontSize: 13, background: "#fcfcfc" },
+    footerLinks: { display: "flex", justifyContent: "center", gap: "16px", margin: "16px 0 24px", flexWrap: "wrap" },
+    link: { color: "#555", textDecoration: "none", fontWeight: "600" }
   };
 
   const features = [
-    { icon: "🍽️", title: "Beautiful menu pages", desc: "Each restaurant gets a branded ordering page with their logo, colours, and menu — live in minutes." },
-    { icon: "📱", title: "Real-time kitchen display", desc: "Kitchen staff see orders instantly. Mark items as preparing or ready with one tap." },
-    { icon: "📦", title: "Live order tracking", desc: "Customers track their order status in real time with a token number — no app needed." },
-    { icon: "🔒", title: "Stock management", desc: "Mark items out of stock instantly. Customers can't order what isn't available." },
-    { icon: "📊", title: "Order history & exports", desc: "Download all orders as CSV. Filter by date, track revenue, manage logistics." },
-    { icon: "⚡", title: "No setup required", desc: "No hardware, no developers, no app installs. Works on any phone or tablet browser." },
+    { icon: "🍽️", title: "Customized digital menu systems", desc: "Restaurants use our infrastructure to generate branded customer checkout menus aligned with their brand identity." },
+    { icon: "📱", title: "Kitchen Order Ticket (KOT) routing", desc: "Kitchen displays dynamically capture and categorize table orders for preparation staff." },
+    { icon: "📦", title: "Real-time ticket tracking", desc: "Customer tokens sync with database state updates to monitor preparation milestones on any mobile browser." },
+    { icon: "🔒", title: "Automated stock syncing", desc: "Instantly toggle menu item availability to prevent customers from placing orders on out-of-stock inventory." },
+    { icon: "📊", title: "SaaS analytics & exports", desc: "Merchant admins can generate reporting filters, analyze daily sales volumes, and export operational reports as CSV files." },
+    { icon: "⚡", title: "Cloud hosted infrastructure", desc: "We host the software infrastructure. No proprietary hardware or on-premise installation is required." },
   ];
 
   const steps = [
-    { title: "Sign up in seconds", desc: "Create your account with email or Google. No credit card required to start." },
-    { title: "We set up your restaurant", desc: "Share your menu and brand colours. We'll get your ordering page live within 24 hours." },
-    { title: "Share your link", desc: "Put your unique URL on your menu, WhatsApp, Instagram — customers start ordering instantly." },
-    { title: "Manage everything from admin", desc: "Add items, update prices, view orders and download reports — all from your phone." },
+    { title: "Configure your SaaS account", desc: "Register your restaurant profile on our platform and specify operational limits." },
+    { title: "Build your digital layout", desc: "Upload your catalog items, brand colors, and configure table seating metadata." },
+    { title: "Deploy QR-based menus", desc: "We generate custom table-level QR codes mapping to your unique EchoTakeout software terminal." },
+    { title: "Manage operations in real-time", desc: "View incoming tickets, update statuses, monitor payments, and manage menus directly." },
   ];
 
   return (
@@ -64,18 +66,18 @@ export default function LandingPage() {
 
       {/* Hero */}
       <div style={s.hero}>
-        <span style={s.heroTag}>Built for Indian restaurants 🇮🇳</span>
-        <h1 style={s.heroTitle}>Your restaurant,<br />online in minutes</h1>
-        <p style={s.heroSub}>EchoTakeout gives your restaurant a branded ordering page, live kitchen display, and order tracking — with zero setup and no app required.</p>
-        <a href="/signup" style={s.ctaBtn}>Get your restaurant online →</a>
-        <a href="/vishals-kitchen" style={s.demoBtn}>See a demo</a>
+        <span style={s.heroTag}>Restaurant SaaS Infrastructure 🇮🇳</span>
+        <h1 style={s.heroTitle}>Software built for modern dining</h1>
+        <p style={s.heroSub}>EchoTakeout provides restaurants with secure QR ordering infrastructure, real-time kitchen displays, and live order management tools—hosted in the cloud.</p>
+        <a href="/signup" style={s.ctaBtn}>Get your restaurant software →</a>
+        <a href="/zeal-fried-chicken" style={s.demoBtn}>See a demo</a>
       </div>
 
       {/* Features */}
       <div style={{ background: "#fafafa", padding: "64px 24px" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
-          <h2 style={s.sectionTitle}>Everything your restaurant needs</h2>
-          <p style={s.sectionSub}>One simple system. No technical knowledge required.</p>
+          <h2 style={s.sectionTitle}>B2B restaurant management tools</h2>
+          <p style={s.sectionSub}>A complete software suite designed to streamline restaurant workflows.</p>
           <div style={s.grid}>
             {features.map(f => (
               <div key={f.title} style={s.featureCard}>
@@ -90,8 +92,8 @@ export default function LandingPage() {
 
       {/* How it works */}
       <div style={s.section}>
-        <h2 style={s.sectionTitle}>How it works</h2>
-        <p style={s.sectionSub}>From signup to first order in under 24 hours.</p>
+        <h2 style={s.sectionTitle}>The onboarding process</h2>
+        <p style={s.sectionSub}>Getting your digital workspace live.</p>
         <div style={s.stepsWrap}>
           {steps.map((step, i) => (
             <div key={step.title} style={s.step}>
@@ -108,24 +110,45 @@ export default function LandingPage() {
       {/* Pricing */}
       <div style={{ background: "#fafafa", padding: "64px 24px" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
-          <h2 style={s.sectionTitle}>Simple pricing</h2>
-          <p style={s.sectionSub}>One plan. Everything included. Cancel anytime.</p>
+          <h2 style={s.sectionTitle}>Simple SaaS pricing</h2>
+          <p style={s.sectionSub}>Transparent monthly subscription plans. No transaction commissions.</p>
           <div style={s.pricingCard}>
-            <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Starter Plan</p>
+            <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>SaaS Starter Plan</p>
             <p style={s.pricingAmount}>₹999</p>
             <p style={s.pricingPer}>per month</p>
-            {["Branded ordering page", "Live kitchen display", "Order tracking for customers", "Stock management", "Order history & CSV export", "Unlimited orders", "WhatsApp & email support"].map(f => (
+            {[
+              "Multi-tenant menu builder", 
+              "KOT kitchen terminal access", 
+              "Active order tracking", 
+              "Stock status controller", 
+              "Operational reports & CSV exports", 
+              "Unlimited table QR generation", 
+              "Direct payment gateway integration support"
+            ].map(f => (
               <p key={f} style={s.pricingFeature}>✅ {f}</p>
             ))}
-            <a href="/signup" style={{ ...s.ctaBtn, display: "block", marginTop: 24, marginRight: 0 }}>Get started →</a>
+            <a href="/signup" style={{ ...s.ctaBtn, display: "block", marginTop: 24, marginRight: 0 }}>Subscribe now →</a>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer (Optimized for Razorpay compliance audit) */}
       <footer style={s.footer}>
-        <p style={{ fontWeight: 700, color: "#ff4d00", fontSize: 16, marginBottom: 8 }}>EchoTakeout</p>
-        <p>© {new Date().getFullYear()} EchoTakeout. All rights reserved.</p>
+        <p style={{ fontWeight: 900, color: "#ff4d00", fontSize: 18, marginBottom: 8 }}>EchoTakeout</p>
+        
+        {/* Mandated compliance policy routing */}
+        <div style={s.footerLinks}>
+          <a href="/privacy" style={s.link}>Privacy Policy</a>
+          <a href="/terms" style={s.link}>Terms of Service</a>
+          <a href="/refund" style={s.link}>Cancellation & Refund Policy</a>
+          <a href="/contact" style={s.link}>Contact Us</a>
+        </div>
+
+        <p style={{ margin: "4px 0" }}>© {new Date().getFullYear()} EchoTakeout. All rights reserved.</p>
+        <p style={{ fontSize: "11px", color: "#888", marginTop: "12px", lineHeight: "1.4" }}>
+          EchoTakeout is a restaurant operations software product owned and operated by <strong style={{color: "#444"}}>[YOUR REGISTERED LEGAL ENTITY NAME, e.g., EchoTakeout Technologies Pvt. Ltd.]</strong>.<br />
+          We provide digital menu hosting, administrative terminals, and payment routing tools. Financial settlements are processed directly by participating merchant entities.
+        </p>
       </footer>
     </div>
   );
