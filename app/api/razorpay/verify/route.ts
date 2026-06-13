@@ -16,10 +16,32 @@ export async function POST(req: NextRequest) {
       tenantSlug,
     } = await req.json();
 
-    // Verify cryptographic signature to prevent tampering
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    // Handle verification for mock checkout if keys are missing
+    if (!keySecret) {
+      console.warn("RAZORPAY_KEY_SECRET missing. Verifying mock payment transaction.");
+      
+      // If we used a mock checkout, bypass cryptographic check and update database
+      if (razorpay_order_id?.startsWith("mock_order_")) {
+        const { data: updatedOrder, error: updateError } = await supabase
+          .from("orders")
+          .update({ status: "new" })
+          .eq("id", orderId)
+          .select()
+          .single();
+
+        if (updateError) return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+        return NextResponse.json({ success: true, order: updatedOrder });
+      }
+      
+      return NextResponse.json({ error: "Secret key missing on host environment" }, { status: 500 });
+    }
+
+    // Standard Cryptographic Signature Verification
     const text = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+      .createHmac("sha256", keySecret)
       .update(text)
       .digest("hex");
 
@@ -29,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
     }
 
-    // Update order status to 'new' in Supabase securely on backend
+    // Update order status to 'new' in Supabase
     const { data: updatedOrder, error: updateError } = await supabase
       .from("orders")
       .update({ status: "new" })
