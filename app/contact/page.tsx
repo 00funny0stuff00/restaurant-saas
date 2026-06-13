@@ -30,7 +30,7 @@ export default function ContactUs() {
         <p style={{ margin: "0 0 8px" }}><strong>Owner:</strong> A SUGUNA ATHIVEERAPERUMAL</p>
         <p style={{ margin: "0 0 8px" }}><strong>Business Profile:</strong> Independent software developer / sole proprietor providing restaurant software services</p>
         <p style={{ margin: "0 0 8px" }}><strong>Support Email:</strong> <a href="mailto:echotakeout@gmail.com" style={{ color: "#ff4d00", textDecoration: "none" }}>echotakeout@gmail.com</a></p>
-        <p style={{ margin: "0 0 8px" }}><strong>Support Phone:</strong> +91 8746 69420</p>
+        <p style={{ margin: "0 0 8px" }}><strong>Support Phone:</strong> +91 87546 69420</p>
         <p style={{ margin: "0" }}><strong>Physical Address:</strong> NO 20 GROUND FLOOR, LAKSHMIPURAM, 6TH STREET, PEELAMEDU, COIMBATORE, TAMIL NADU 641004, India</p>
       </div>
 
