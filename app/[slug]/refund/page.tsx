@@ -9,7 +9,9 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const dynamic = "force-dynamic";
 
 export default async function TenantRefund({ params }) {
-  const { slug } = params;
+  // Next.js 15 asynchronous unwrap constraint
+  const { slug } = await params;
+  
   const { data: tenant } = await supabase.from("tenants").select("*").eq("slug", slug).single();
   if (!tenant) notFound();
 
