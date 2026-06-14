@@ -47,43 +47,49 @@ export default function RestaurantPage() {
   const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
-    async function loadData() {
-      // SECURITY: Explicitly query only public columns. NEVER load razorpay_key_secret onto client.
-      const { data: tenantData } = await supabase.from("tenants")
-        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled")
-        .eq("slug", slug)
-        .single();
+    // Inside app/[slug]/page.tsx, replace the loadData() function inside useEffect with this:
+async function loadData() {
+  // SECURITY: Explicitly query only public columns. NEVER load razorpay_key_secret onto client.
+  const { data: tenantData, error: tenantError } = await supabase.from("tenants")
+    .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled")
+    .eq("slug", slug)
+    .single();
 
-      if (!tenantData) { setLoading(false); return; }
-      setTenant(tenantData);
+  if (tenantError) {
+    console.error("Supabase Tenant Query Error:", tenantError.message);
+    setLoading(false);
+    return;
+  }
 
-      // Default payment method based on merchant configuration
-      setPaymentMethod(tenantData.online_payments_enabled ? "online" : "counter");
+  setTenant(tenantData);
 
-      const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
-      if (sub) {
-        const expires = new Date(sub.expires_at);
-        const now = new Date();
-        const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
-        if ((sub.status === "expired" || now > expires) && diffDays > 7) {
-          setOffline(true); setLoading(false); return;
-        }
-      }
+  // Default payment method based on merchant configuration
+  setPaymentMethod(tenantData.online_payments_enabled ? "online" : "counter");
 
-      if (tenantData.queue_limit_enabled) {
-        const { data: activeOrders } = await supabase.from("orders").select("id")
-          .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
-        if (activeOrders && activeOrders.length >= tenantData.queue_limit) setQueueFull(true);
-      }
-
-      const { data: menuData } = await supabase.from("menu_items").select("*")
-        .eq("tenant_slug", slug).eq("in_stock", true);
-      if (menuData) {
-        setItems(menuData);
-        setActiveCategory([...new Set(menuData.map(i => i.category))][0]);
-      }
-      setLoading(false);
+  const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
+  if (sub) {
+    const expires = new Date(sub.expires_at);
+    const now = new Date();
+    const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
+    if ((sub.status === "expired" || now > expires) && diffDays > 7) {
+      setOffline(true); setLoading(false); return;
     }
+  }
+
+  if (tenantData.queue_limit_enabled) {
+    const { data: activeOrders } = await supabase.from("orders").select("id")
+      .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
+    if (activeOrders && activeOrders.length >= tenantData.queue_limit) setQueueFull(true);
+  }
+
+  const { data: menuData } = await supabase.from("menu_items").select("*")
+    .eq("tenant_slug", slug).eq("in_stock", true);
+  if (menuData) {
+    setItems(menuData);
+    setActiveCategory([...new Set(menuData.map(i => i.category))][0]);
+  }
+  setLoading(false);
+}
 
     async function refreshMenu() {
       const { data: menuData } = await supabase.from("menu_items").select("*")
