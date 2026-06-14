@@ -3,6 +3,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 
+function isValidIPv4(ip) {
+  if (!ip) return false;
+  const s = ip.trim();
+  const re = /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}$/;
+  return re.test(s);
+}
+
 export default function AdminPage() {
   const [editOrderEnabled, setEditOrderEnabled] = useState(false);
   const [customizeOrderEnabled, setCustomizeOrderEnabled] = useState(false);
@@ -13,8 +20,9 @@ export default function AdminPage() {
   const [orders, setOrders] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("menu");
+  const [tab, setTab] = useState("orders"); // Defaults to orders to match native app
   const [filterDate, setFilterDate] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all"); // Quick status filtering
   const [authError, setAuthError] = useState(null);
 
   const [tName, setTName] = useState("");
@@ -35,11 +43,19 @@ export default function AdminPage() {
   const [kitchenPin, setKitchenPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
-  // Direct Key Configuration States
+  // Payments (SaaS Razorpay Configurations)
   const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(false);
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
   const [savingPayments, setSavingPayments] = useState(false);
+
+  // Web Printing Settings (Synced with Native App)
+  const [printEnabled, setPrintEnabled] = useState(false);
+  const [kotIP, setKotIP] = useState("");
+  const [kotAutoprint, setKotAutoprint] = useState("new");
+  const [receiptIP, setReceiptIP] = useState("");
+  const [receiptAutoprint, setReceiptAutoprint] = useState("done");
+  const [savingPrinter, setSavingPrinter] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -79,10 +95,20 @@ export default function AdminPage() {
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       setKitchenPin(t?.kitchen_pin ?? "");
 
-      // Load Payment Configurations
+      // Load Payment Configuration
       setOnlinePaymentsEnabled(t?.online_payments_enabled ?? false);
       setRazorpayKeyId(t?.razorpay_key_id ?? "");
       setRazorpayKeySecret(t?.razorpay_key_secret ?? "");
+
+      // Load Synced Printer Configurations
+      const { data: p } = await supabase.from("print_settings").select("*").eq("tenant_slug", slug).maybeSingle();
+      if (p) {
+        setPrintEnabled(p.enabled ?? false);
+        setKotIP(p.kot_ip ?? "");
+        setKotAutoprint(p.kot_autoprint ?? "new");
+        setReceiptIP(p.receipt_ip ?? "");
+        setReceiptAutoprint(p.receipt_autoprint ?? "done");
+      }
  
       await loadMenu();
       await loadOrders();
@@ -90,7 +116,8 @@ export default function AdminPage() {
     }
     init();
     const interval = setInterval(loadMenu, 8000);
-    return () => clearInterval(interval);
+    const orderInterval = setInterval(loadOrders, 6000); // Auto refresh orders tab
+    return () => { clearInterval(interval); clearInterval(orderInterval); };
   }, []);
 
   async function loadMenu() {
@@ -122,7 +149,6 @@ export default function AdminPage() {
     alert("Settings saved!");
   }
 
-  // Save changes to Merchant Razorpay Credentials
   async function savePayments() {
     setSavingPayments(true);
     const { error } = await supabase.from("tenants").update({
@@ -130,10 +156,42 @@ export default function AdminPage() {
       razorpay_key_id: razorpayKeyId.trim() || null,
       razorpay_key_secret: razorpayKeySecret.trim() || null,
     }).eq("slug", slug);
-    
     setSavingPayments(false);
-    if (error) return alert("Error saving payment credentials.");
+    if (error) return alert("Error saving payment configuration.");
     alert("Payment settings saved!");
+  }
+
+  async function savePrinterSettingsWeb() {
+    if (kotIP.trim() && !isValidIPv4(kotIP)) {
+      return alert("Please enter a valid IPv4 address for KOT printer (e.g. 192.168.1.45)");
+    }
+    if (receiptIP.trim() && !isValidIPv4(receiptIP)) {
+      return alert("Please enter a valid IPv4 address for Receipt printer (e.g. 192.168.1.45)");
+    }
+
+    setSavingPrinter(true);
+    const { error } = await supabase.from("print_settings").upsert({
+      tenant_slug: slug,
+      enabled: printEnabled,
+      kot_ip: kotIP.trim() || null,
+      kot_autoprint: kotAutoprint,
+      receipt_ip: receiptIP.trim() || null,
+      receipt_autoprint: receiptAutoprint
+    });
+    setSavingPrinter(false);
+    if (error) return alert("Error saving printer configuration.");
+    alert("Printer settings saved!");
+  }
+
+  async function updateStatus(id, status) {
+    await supabase.from("orders").update({ status }).eq("id", id);
+    loadOrders();
+  }
+
+  async function cancelOrder(id) {
+    if (!confirm("Cancel order? This cannot be undone.")) return;
+    await supabase.from("orders").update({ status: "cancelled" }).eq("id", id);
+    loadOrders();
   }
 
   async function addItem() {
@@ -228,13 +286,24 @@ export default function AdminPage() {
   ];
 
   const primary = tenant?.primary_color ?? "#ff4d00";
-  const filteredOrders = filterDate
+  const nextStatus = { new: "preparing", preparing: "ready", ready: "done" };
+  const nextLabel = { new: "Start →", preparing: "Ready →", ready: "Done ✓" };
+
+  // Status metrics
+  const activeOrdersForMetrics = filterDate
     ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
     : orders;
-  const cancelledOrders = filteredOrders.filter(o => o.status === "cancelled");
-  const paidOrders = filteredOrders.filter(o => o.status !== "cancelled");
-  const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
+  const cancelledCount = activeOrdersForMetrics.filter(o => o.status === "cancelled").length;
+  const netRevenue = activeOrdersForMetrics.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
+
+  // Dynamic filter cascade
+  let filteredOrders = activeOrdersForMetrics;
+  if (filterStatus !== "all") {
+    filteredOrders = filteredOrders.filter(o => o.status === filterStatus);
+  }
+
   const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
+  const categories = [...new Set(items.map(i => i.category))];
 
   const getSubWarning = () => {
     if (!subscription) return null;
@@ -293,6 +362,7 @@ export default function AdminPage() {
       </div>
       <a href={`/${slug}`} style={{ fontSize: 13, color: "#888" }}>← View live menu</a>
 
+      {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" }}>
         <button style={s.tab(tab === "menu")} onClick={() => setTab("menu")}>Menu Items</button>
         <button style={s.tab(tab === "orders")} onClick={() => setTab("orders")}>Orders</button>
@@ -319,12 +389,12 @@ export default function AdminPage() {
 
       {tab === "payments" && (
         <div>
-          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Configuration</h3>
+          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
           <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how customers pay for orders placed on EchoTakeout.</p>
 
           <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-            When enabled, customers can pay directly on your menu using UPI, Debit/Credit Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
+            Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
           </p>
 
           <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
@@ -334,25 +404,14 @@ export default function AdminPage() {
             </p>
 
             <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
-            <input 
-              style={s.input} 
-              placeholder="e.g. rzp_live_A1B2C3D4" 
-              value={razorpayKeyId} 
-              onChange={e => setRazorpayKeyId(e.target.value)} 
-            />
+            <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
 
             <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
-            <input 
-              style={s.input} 
-              type="password"
-              placeholder="••••••••••••••••••••••••" 
-              value={razorpayKeySecret} 
-              onChange={e => setRazorpayKeySecret(e.target.value)} 
-            />
+            <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
           </div>
 
           <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
-            {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
+            {savingPayments ? "Saving credentials..." : "Save Payment Options"}
           </button>
         </div>
       )}
@@ -377,11 +436,13 @@ export default function AdminPage() {
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 16 }}>Customers can edit or cancel while status is still "new".</p>
           <Toggle label="Allow order customization notes" value={customizeOrderEnabled} onChange={setCustomizeOrderEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>Customers can add special instructions like "no onions" or "extra spicy".</p>
-          <button style={s.btn(primary)} onClick={saveSettings} disabled={savingSettings}>
+          
+          <button style={{ ...s.btn(primary), marginBottom: 32 }} onClick={saveSettings} disabled={savingSettings}>
             {savingSettings ? "Saving..." : "Save settings"}
           </button>
 
-          <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid #f0f0f0" }}>
+          {/* Kitchen PIN */}
+          <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
             <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>Kitchen PIN</h3>
             <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Kitchen staff enter this PIN to access the kitchen display. Keep it private.</p>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -398,6 +459,57 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+
+          {/* Web Printing Configuration - Fully Matches Mobile Params */}
+          <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
+            <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>🖨️ Printing Configuration</h3>
+            <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Sync printing rules with local WiFi thermal printers.</p>
+            
+            <Toggle label="Enable Printing Settings" value={printEnabled} onChange={setPrintEnabled} />
+            
+            {printEnabled && (
+              <div style={{ marginTop: 16 }}>
+                {/* KOT IP */}
+                <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>🍳 KOT Printer (Kitchen)</p>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Printer IPv4 Address</label>
+                  <input style={s.input} placeholder="e.g. 192.168.1.45" value={kotIP} onChange={e => setKotIP(e.target.value)} />
+                  
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Auto-print option</label>
+                  {["new", "manual"].map(opt => (
+                    <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, margin: "4px 0", cursor: "pointer" }}>
+                      <input type="radio" name="kot_auto" checked={kotAutoprint === opt} onChange={() => setKotAutoprint(opt)} />
+                      {opt === "new" ? "Auto-print on new order" : "Manual print only"}
+                    </label>
+                  ))}
+                </div>
+
+                {/* Receipt IP */}
+                <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>🧾 Receipt Printer (Counter)</p>
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Printer IPv4 Address</label>
+                  <input style={s.input} placeholder="e.g. 192.168.1.46" value={receiptIP} onChange={e => setReceiptIP(e.target.value)} />
+
+                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Auto-print option</label>
+                  {[
+                    { val: "new", label: "Auto-print on new order" },
+                    { val: "ready", label: "Auto-print when ready" },
+                    { val: "done", label: "Auto-print when done" },
+                    { val: "manual", label: "Manual print only" },
+                  ].map(opt => (
+                    <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, margin: "4px 0", cursor: "pointer" }}>
+                      <input type="radio" name="rec_auto" checked={receiptAutoprint === opt.val} onChange={() => setReceiptAutoprint(opt.val)} />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+
+                <button style={s.btn(primary)} onClick={savePrinterSettingsWeb} disabled={savingPrinter}>
+                  {savingPrinter ? "Saving..." : "Save printer settings"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -412,17 +524,26 @@ export default function AdminPage() {
           <button style={{ ...s.btn(primary), marginBottom: 28 }} onClick={addItem}>Add item</button>
 
           <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Current menu</h3>
-          {items.map(item => (
-            <div key={item.id} style={s.card}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{item.name}</p>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#888" }}>{item.category} · ₹{item.price}</p>
-                {item.description && <p style={{ margin: "2px 0 0", fontSize: 11, color: "#aaa" }}>{item.description}</p>}
-              </div>
-              <button style={s.btn(item.in_stock ? "#16a34a" : "#888")} onClick={() => toggleStock(item.id, item.in_stock)}>
-                {item.in_stock ? "In stock" : "Out of stock"}
-              </button>
-              <button style={s.btn("#ef4444")} onClick={() => deleteItem(item.id)}>Delete</button>
+          {categories.map(cat => (
+            <div key={cat} style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: "16px 0 10px", fontSize: 13, textTransform: "uppercase", color: "#888", letterSpacing: 0.5, borderBottom: "1px solid #eee", paddingBottom: 6 }}>{cat}</h4>
+              {items.filter(i => i.category === cat).map(item => (
+                <div key={item.id} style={s.card}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{item.name}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "#888" }}>₹{item.price}</p>
+                    {item.description && <p style={{ margin: "2px 0 0", fontSize: 11, color: "#aaa" }}>{item.description}</p>}
+                  </div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <button style={s.btn(item.in_stock ? "#dcfce7" : "#fee2e2")} onClick={() => toggleStock(item.id, item.in_stock)}>
+                      <span style={{ color: item.in_stock ? "#16a34a" : "#dc2626", fontSize: 12 }}>
+                        {item.in_stock ? "In stock" : "Out"}
+                      </span>
+                    </button>
+                    <button style={{ ...s.btn("#ef4444"), padding: "8px 12px" }} onClick={() => deleteItem(item.id)}>✕</button>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -430,13 +551,44 @@ export default function AdminPage() {
 
       {tab === "orders" && (
         <div>
+          {/* Quick Metrics Summarizer - Parity with Mobile Layout */}
+          <div style={{ display: "flex", justifyContent: "space-between", background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "16px", marginBottom: 16 }}>
+            <div style={{ textAlign: "center", flex: 1 }}>
+              <p style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{activeOrdersForMetrics.length}</p>
+              <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0" }}>Total orders</p>
+            </div>
+            <div style={{ textAlign: "center", flex: 1, borderLeft: "1px solid #eee", borderRight: "1px solid #eee" }}>
+              <p style={{ fontSize: 20, fontWeight: 800, color: primary, margin: 0 }}>₹{netRevenue.toFixed(0)}</p>
+              <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0" }}>Revenue</p>
+            </div>
+            <div style={{ textAlign: "center", flex: 1 }}>
+              <p style={{ fontSize: 20, fontWeight: 800, color: "#ef4444", margin: 0 }}>{cancelledCount}</p>
+              <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0" }}>Cancelled</p>
+            </div>
+          </div>
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>{filteredOrders.length} orders</p>
-              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#888" }}>Revenue: ₹{totalRevenue.toFixed(2)}</p>
-              {cancelledOrders.length > 0 && (
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#ef4444" }}>{cancelledOrders.length} order{cancelledOrders.length > 1 ? "s" : ""} cancelled</p>
-              )}
+            {/* Quick Status Filters */}
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+              {["all", "new", "preparing", "ready", "done", "cancelled"].map(s => (
+                <button 
+                  key={s} 
+                  onClick={() => setFilterStatus(s)} 
+                  style={{ 
+                    padding: "6px 12px", 
+                    borderRadius: 20, 
+                    border: `1px solid ${filterStatus === s ? primary : "#ddd"}`, 
+                    background: filterStatus === s ? primary : "white", 
+                    color: filterStatus === s ? "white" : "#555", 
+                    fontSize: 12, 
+                    fontWeight: 600, 
+                    cursor: "pointer",
+                    textTransform: "capitalize"
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }} />
@@ -462,10 +614,35 @@ export default function AdminPage() {
                   {order.order_type === "dine-in" ? `🪑 Dine-in · Table ${order.table_number}` : "🥡 Takeaway"}
                 </p>
                 <p style={{ margin: "0 0 4px", fontSize: 13, color: "#555" }}>{order.items}</p>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                
+                {order.notes && (
+                  <div style={{ background: "#ede9fe", borderRadius: 8, padding: 8, margin: "6px 0", fontSize: 13, color: "#5b21b6", fontWeight: "600" }}>
+                    📝 {order.notes}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
                   <span style={{ color: "#888" }}>{order.phone} · {new Date(order.created_at).toLocaleString("en-IN")}</span>
-                  <span style={{ fontWeight: 700, color: primary }}>₹{order.total}</span>
+                  <span style={{ fontWeight: 700, color: primary, fontSize: 15 }}>₹{order.total}</span>
                 </div>
+
+                {/* State Management Triggers - Perfect Mobile Parity */}
+                {order.status !== "done" && order.status !== "cancelled" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button 
+                      style={{ ...s.btn(statusColor[nextStatus[order.status]]), flex: 1, padding: "8px 0", fontSize: 13 }}
+                      onClick={() => updateStatus(order.id, nextStatus[order.status])}
+                    >
+                      {nextLabel[order.status]}
+                    </button>
+                    <button 
+                      style={{ ...s.btn("#ef4444"), padding: "8px 16px", fontSize: 13 }}
+                      onClick={() => cancelOrder(order.id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
