@@ -420,49 +420,54 @@ export default function AdminPage() {
       )}
 
       {tab === "payments" && (
-        <div>
-          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
-          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
+  <div>
+    <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
+    <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
 
-          {/* Onboarding Checklist for Razorpay Compliance */}
-          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
-            <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
-              <li style={{ marginBottom: "6px" }}>
-                Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://restaurant-saas-vert.vercel.app/{slug}</strong>
-              </li>
-              <li style={{ marginBottom: "6px" }}>
-                Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
-              </li>
-              <li>
-                Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
-              </li>
-            </ol>
-          </div>
+    <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
+    <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+      Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
+    </p>
 
-          <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
-          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-            Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
+    {/* Conditionally Render Checklist & Credentials Box ONLY when enabled */}
+    {onlinePaymentsEnabled && (
+      <>
+        {/* Onboarding Checklist for Razorpay Compliance */}
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
+          <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
+            <li style={{ marginBottom: "6px" }}>
+              Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://echotakeout.com/{slug}</strong>
+            </li>
+            <li style={{ marginBottom: "6px" }}>
+              Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
+            </li>
+            <li>
+              Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
+            </li>
+          </ol>
+        </div>
+
+        <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
+          <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
+          <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
+            Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
           </p>
 
-          <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
-            <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
-            <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
-              Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
-            </p>
+          <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
+          <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
 
-            <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
-            <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
-
-            <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
-            <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
-          </div>
-
-          <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
-            {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
-          </button>
+          <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
+          <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
         </div>
-      )}
+      </>
+    )}
+
+    <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
+      {savingPayments ? "Saving configuration..." : "Save Payment Configuration"}
+    </button>
+  </div>
+)}
 
       {tab === "settings" && (
         <div>
