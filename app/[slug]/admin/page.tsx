@@ -308,7 +308,6 @@ export default function AdminPage() {
     a.click();
   }
 
-  const base = "https://restaurant-saas-vert.vercel.app";
   const qrPages = [
     { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
     { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
