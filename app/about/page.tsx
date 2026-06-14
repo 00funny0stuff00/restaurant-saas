@@ -23,11 +23,8 @@ export default function AboutUs() {
 
       <p>EchoTakeout is a cloud-hosted B2B restaurant software infrastructure designed and operated by <strong>A SUGUNA ATHIVEERAPERUMAL</strong>, an independent software developer based in Coimbatore, Tamil Nadu.</p>
 
-      <h2 style={s.h2}>Our Core Mission</h2>
-      <p>Modern dining customers expect speed, clarity, and convenience. Independent restaurant operators, however, often face high entry barriers, commission setups from major aggregators, or proprietary system configurations. EchoTakeout was built to bridge this gap by providing simple, affordable cloud-hosted menu and checkout infrastructure.</p>
-
       <h2 style={s.h2}>How We Help Independent Restaurants</h2>
-      <p>Through EchoTakeout, local dining establishments can generate custom table-level QR codes, configure brand-matched digital interfaces, manage menu availability in real time, and route kitchen order tickets (KOT) seamlessly to their prep terminals. We provide the technology, and the restaurateur operates their culinary business independently with direct-to-bank settlements.</p>
+      <p>Restaurants can connect their own payment providers and receive settlements directly through their payment accounts.</p>
     </div>
   );
 }

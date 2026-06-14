@@ -20,14 +20,18 @@ export default function AdminPage() {
   const [orders, setOrders] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("orders"); // Defaults to orders to match native app
+  const [tab, setTab] = useState("orders"); // Matches mobile default tab view
   const [filterDate, setFilterDate] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // Quick status filtering
+  const [filterStatus, setFilterStatus] = useState("all"); 
   const [authError, setAuthError] = useState(null);
 
+  // Restaurant details & dynamic colors
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
   const [tColor, setTColor] = useState("");
+  const [tEmail, setTEmail] = useState("");
+  const [tPhone, setTPhone] = useState("");
+  const [tAddress, setTAddress] = useState("");
 
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
@@ -43,13 +47,13 @@ export default function AdminPage() {
   const [kitchenPin, setKitchenPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
-  // Payments (SaaS Razorpay Configurations)
+  // Direct Key Payments Settings
   const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(false);
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
   const [savingPayments, setSavingPayments] = useState(false);
 
-  // Web Printing Settings (Synced with Native App)
+  // Synced Web Printing Settings
   const [printEnabled, setPrintEnabled] = useState(false);
   const [kotIP, setKotIP] = useState("");
   const [kotAutoprint, setKotAutoprint] = useState("new");
@@ -95,12 +99,17 @@ export default function AdminPage() {
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       setKitchenPin(t?.kitchen_pin ?? "");
 
-      // Load Payment Configuration
+      // Load payments
       setOnlinePaymentsEnabled(t?.online_payments_enabled ?? false);
       setRazorpayKeyId(t?.razorpay_key_id ?? "");
       setRazorpayKeySecret(t?.razorpay_key_secret ?? "");
 
-      // Load Synced Printer Configurations
+      // Load dynamically generated policy contact points
+      setTEmail(t?.support_email ?? "");
+      setTPhone(t?.support_phone ?? "");
+      setTAddress(t?.physical_address ?? "");
+
+      // Load synced printing records from Supabase
       const { data: p } = await supabase.from("print_settings").select("*").eq("tenant_slug", slug).maybeSingle();
       if (p) {
         setPrintEnabled(p.enabled ?? false);
@@ -116,7 +125,7 @@ export default function AdminPage() {
     }
     init();
     const interval = setInterval(loadMenu, 8000);
-    const orderInterval = setInterval(loadOrders, 6000); // Auto refresh orders tab
+    const orderInterval = setInterval(loadOrders, 6000);
     return () => { clearInterval(interval); clearInterval(orderInterval); };
   }, []);
 
@@ -131,7 +140,16 @@ export default function AdminPage() {
   }
 
   async function saveTenant() {
-    await supabase.from("tenants").update({ name: tName, tagline: tTagline, primary_color: tColor }).eq("slug", slug);
+    const { error } = await supabase.from("tenants").update({ 
+      name: tName.trim(), 
+      tagline: tTagline.trim() || null, 
+      primary_color: tColor,
+      support_email: tEmail.trim() || null,
+      support_phone: tPhone.trim() || null,
+      physical_address: tAddress.trim() || null
+    }).eq("slug", slug);
+    
+    if (error) return alert("Error saving brand metrics.");
     alert("Saved!");
   }
 
@@ -157,16 +175,16 @@ export default function AdminPage() {
       razorpay_key_secret: razorpayKeySecret.trim() || null,
     }).eq("slug", slug);
     setSavingPayments(false);
-    if (error) return alert("Error saving payment configuration.");
+    if (error) return alert("Error saving credentials.");
     alert("Payment settings saved!");
   }
 
   async function savePrinterSettingsWeb() {
     if (kotIP.trim() && !isValidIPv4(kotIP)) {
-      return alert("Please enter a valid IPv4 address for KOT printer (e.g. 192.168.1.45)");
+      return alert("Invalid IPv4 address format for KOT printer.");
     }
     if (receiptIP.trim() && !isValidIPv4(receiptIP)) {
-      return alert("Please enter a valid IPv4 address for Receipt printer (e.g. 192.168.1.45)");
+      return alert("Invalid IPv4 address format for Receipt printer.");
     }
 
     setSavingPrinter(true);
@@ -179,7 +197,7 @@ export default function AdminPage() {
       receipt_autoprint: receiptAutoprint
     });
     setSavingPrinter(false);
-    if (error) return alert("Error saving printer configuration.");
+    if (error) return alert("Error saving printing variables.");
     alert("Printer settings saved!");
   }
 
@@ -189,7 +207,7 @@ export default function AdminPage() {
   }
 
   async function cancelOrder(id) {
-    if (!confirm("Cancel order? This cannot be undone.")) return;
+    if (!confirm("Are you sure you want to cancel this order?")) return;
     await supabase.from("orders").update({ status: "cancelled" }).eq("id", id);
     loadOrders();
   }
@@ -362,7 +380,7 @@ export default function AdminPage() {
       </div>
       <a href={`/${slug}`} style={{ fontSize: 13, color: "#888" }}>← View live menu</a>
 
-      {/* Tabs */}
+      {/* Admin Tab Navigation */}
       <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" }}>
         <button style={s.tab(tab === "menu")} onClick={() => setTab("menu")}>Menu Items</button>
         <button style={s.tab(tab === "orders")} onClick={() => setTab("orders")}>Orders</button>
@@ -374,15 +392,29 @@ export default function AdminPage() {
 
       {tab === "restaurant" && (
         <div>
+          <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Restaurant Information</h3>
           <label style={{ fontSize: 13, fontWeight: 600 }}>Restaurant Name</label>
           <input style={s.input} value={tName} onChange={e => setTName(e.target.value)} />
           <label style={{ fontSize: 13, fontWeight: 600 }}>Tagline</label>
           <input style={s.input} value={tTagline} onChange={e => setTTagline(e.target.value)} />
           <label style={{ fontSize: 13, fontWeight: 600 }}>Brand Colour</label>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
             <input type="color" value={tColor} onChange={e => setTColor(e.target.value)} style={{ width: 48, height: 40, border: "none", cursor: "pointer", borderRadius: 6 }} />
             <span style={{ fontSize: 14, color: "#555" }}>{tColor}</span>
           </div>
+
+          <h3 style={{ fontWeight: 700, margin: "24px 0 12px", borderTop: "1px solid #f0f0f0", paddingTop: 24 }}>Compliance Contact Information</h3>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>These details generate your customized Privacy, Terms, and Refund policies dynamically for your payment gateway audits.</p>
+          
+          <label style={{ fontSize: 13, fontWeight: 600 }}>Support Email</label>
+          <input style={s.input} placeholder="e.g. contact@yourrestaurant.com" value={tEmail} onChange={e => setTEmail(e.target.value)} />
+          
+          <label style={{ fontSize: 13, fontWeight: 600 }}>Support Phone</label>
+          <input style={s.input} placeholder="e.g. +91 98765 43210" value={tPhone} onChange={e => setTPhone(e.target.value)} />
+          
+          <label style={{ fontSize: 13, fontWeight: 600 }}>Physical Address</label>
+          <textarea style={{ ...s.input, resize: "vertical", minHeight: 80 }} placeholder="e.g. 12 Main Road, Peelamedu, Coimbatore, 641004" value={tAddress} onChange={e => setTAddress(e.target.value)} />
+
           <button style={s.btn(primary)} onClick={saveTenant}>Save changes</button>
         </div>
       )}
@@ -390,7 +422,23 @@ export default function AdminPage() {
       {tab === "payments" && (
         <div>
           <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
-          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how customers pay for orders placed on EchoTakeout.</p>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
+
+          {/* Onboarding Checklist for Razorpay Compliance */}
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
+            <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
+              <li style={{ marginBottom: "6px" }}>
+                Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://restaurant-saas-vert.vercel.app/{slug}</strong>
+              </li>
+              <li style={{ marginBottom: "6px" }}>
+                Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
+              </li>
+              <li>
+                Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
+              </li>
+            </ol>
+          </div>
 
           <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
@@ -411,7 +459,7 @@ export default function AdminPage() {
           </div>
 
           <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
-            {savingPayments ? "Saving credentials..." : "Save Payment Options"}
+            {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
           </button>
         </div>
       )}
@@ -626,7 +674,7 @@ export default function AdminPage() {
                   <span style={{ fontWeight: 700, color: primary, fontSize: 15 }}>₹{order.total}</span>
                 </div>
 
-                {/* State Management Triggers - Perfect Mobile Parity */}
+                {/* State Management Triggers */}
                 {order.status !== "done" && order.status !== "cancelled" && (
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     <button 

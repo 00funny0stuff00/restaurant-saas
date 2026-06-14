@@ -57,7 +57,7 @@ export default function RestaurantPage() {
       if (!tenantData) { setLoading(false); return; }
       setTenant(tenantData);
 
-      // Default the payment method based on merchant settings
+      // Default payment method based on merchant configuration
       setPaymentMethod(tenantData.online_payments_enabled ? "online" : "counter");
 
       const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
@@ -166,7 +166,7 @@ export default function RestaurantPage() {
       return; 
     }
 
-    // SCENARIO A: Counter Payment (Or Direct UPI verification by staff)
+    // SCENARIO A: Cash/Counter payments
     if (paymentMethod === "counter") {
       setOrderNumber(data.id);
       setScreen("success");
@@ -193,7 +193,7 @@ export default function RestaurantPage() {
       return;
     }
 
-    // SCENARIO B: Razorpay Checkout with Merchant's Custom Key ID
+    // SCENARIO B: Razorpay Integration with Merchant's Public Key ID
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) {
       setProcessingPayment(false);
@@ -211,7 +211,7 @@ export default function RestaurantPage() {
 
       if (razorpayOrder.error) throw new Error(razorpayOrder.error);
 
-      // Fallback for mock checkout mode on development or empty keys
+      // Graceful local emulation check if no valid keys are configured
       if (razorpayOrder.isMock) {
         alert("🔒 Development sandbox mode. Emulating successful transaction.");
         const verifyRes = await fetch("/api/razorpay/verify", {
@@ -230,7 +230,7 @@ export default function RestaurantPage() {
           setOrderNumber(data.id);
           setScreen("success");
         } else {
-          alert("Mock transaction verification failed.");
+          alert("Verification of mock payment failed.");
         }
         setProcessingPayment(false);
         return;
@@ -435,7 +435,7 @@ export default function RestaurantPage() {
         <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
       )}
 
-      {/* Conditional Payment Selection */}
+      {/* Direct Key Payments Toggle Switch */}
       {tenant.online_payments_enabled && (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Method</p>
@@ -520,7 +520,7 @@ export default function RestaurantPage() {
                   <p style={s.price}>₹{item.price}</p>
                   {inCart ? (
                     <div style={s.qtyRow}>
-                      <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}></button>
+                      <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
                       <span style={{ fontWeight: 700, fontSize: 14 }}>{inCart.qty}</span>
                       <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
                     </div>
@@ -539,6 +539,24 @@ export default function RestaurantPage() {
           View order · {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{total}
         </button>
       )}
+
+      {/* Dynamic Local Policy Footer */}
+      <div style={{ 
+        textAlign: "center", 
+        padding: "24px 16px 100px", 
+        background: "#f9f9f9", 
+        borderTop: `1px solid ${secondary}`,
+        fontSize: "12px",
+        color: "#888",
+        fontFamily: "sans-serif"
+      }}>
+        <p>© 2026 {tenant.name}. All rights reserved.</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
+          <a href={`/${slug}/privacy`} target="_blank" style={{ color: "#888", textDecoration: "none", fontWeight: "600" }}>Privacy Policy</a> · 
+          <a href={`/${slug}/terms`} target="_blank" style={{ color: "#888", textDecoration: "none", fontWeight: "600" }}>Terms & Conditions</a> · 
+          <a href={`/${slug}/refund`} target="_blank" style={{ color: "#888", textDecoration: "none", fontWeight: "600" }}>Refund Policy</a>
+        </div>
+      </div>
     </div>
   );
 }

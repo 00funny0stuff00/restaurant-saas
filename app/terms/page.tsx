@@ -19,32 +19,26 @@ export default function TermsOfService() {
       </header>
 
       <h1 style={s.title}>Terms of Service</h1>
-      <p style={s.sub}>Last updated: June 13, 2026</p>
+      <p style={s.sub}>Last updated: June 14, 2026</p>
 
       <p>Welcome to EchoTakeout. By accessing or using our software platform, you agree to comply with and be bound by these Terms of Service. These Terms are a binding agreement between you and <strong>A SUGUNA ATHIVEERAPERUMAL</strong> ("we", "us", "our"), the sole operator of EchoTakeout.</p>
 
       <h2 style={s.h2}>1. The Software Platform Services</h2>
       <p>EchoTakeout is a cloud-hosted software-as-a-service (SaaS) provider. We build and provide software infrastructure that helps independent restaurants convert their operational workflows (such as menu presentation, table selections, and kitchen alerts) into digital workflows. We are strictly a software infrastructure provider.</p>
 
-      <h2 style={s.h2}>2. Separation of Merchant and Platform Relationships</h2>
+      <h2 style={s.h2}>2. Payment Gateway Integrations</h2>
+      <p>Restaurants are solely responsible for obtaining and maintaining valid accounts with any third-party payment service providers they choose to use.</p>
+      <p>Where payment gateway integrations are enabled, restaurants are responsible for the accuracy of their configured credentials, compliance requirements, settlements, chargebacks, refunds, and payment-related obligations.</p>
+      <p>EchoTakeout does not act as a payment processor, payment aggregator, or merchant of record.</p>
+
+      <h2 style={s.h2}>3. Separation of Merchant and Platform Relationships</h2>
       <p>Restaurants using EchoTakeout are completely independent commercial entities. EchoTakeout is not a party to any transactions between a dining customer and a restaurant:</p>
       <ul>
         <li><strong>Food Preparation & Fulfillment:</strong> The respective restaurant is solely responsible for preparing, packing, pricing, delivering, and handling orders.</li>
         <li><strong>Customer Service:</strong> Any complaints, cancellations, allergen queries, or quality disputes concerning food orders must be addressed directly with the restaurant management.</li>
       </ul>
 
-      <h2 style={s.h2}>3. Merchant Responsibilities</h2>
-      <p>Restaurant operators utilizing our software agree to:</p>
-      <ul>
-        <li>Provide accurate and lawful descriptions, pricing, and allergen parameters in their digital menus.</li>
-        <li>Protect their administrator credentials and local kitchen pins from unauthorized access.</li>
-        <li>Maintain valid compliance and bank credentials when integrating third-party payment gateways like Razorpay.</li>
-      </ul>
-
-      <h2 style={s.h2}>4. Service Limitations & Acceptable Usage</h2>
-      <p>While we target continuous system uptime, we do not guarantee uninterrupted operational availability of our hosted dynamic menus. Subscribers are prohibited from using our services to list illegal, prohibited, or restricted items under Indian law.</p>
-
-      <h2 style={s.h2}>5. Governing Law</h2>
+      <h2 style={s.h2}>4. Governing Law</h2>
       <p>These terms shall be governed by, interpreted, and construed in accordance with the laws of India, with legal disputes subject to the exclusive jurisdiction of courts in Coimbatore, Tamil Nadu.</p>
     </div>
   );
