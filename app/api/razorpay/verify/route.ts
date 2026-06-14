@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
-// Forces Next.js to skip static build-time evaluation
 export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -19,13 +18,26 @@ export async function POST(req: NextRequest) {
       tenantSlug,
     } = await req.json();
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!tenantSlug || !orderId) {
+      return NextResponse.json({ error: "Missing tracking keys" }, { status: 400 });
+    }
 
-    // Handle verification for mock checkout if keys are missing
+    // SECURITY: Load this restaurant's secure secret key
+    const { data: tenant, error: tenantError } = await supabase
+      .from("tenants")
+      .select("razorpay_key_secret")
+      .eq("slug", tenantSlug)
+      .single();
+
+    if (tenantError || !tenant) {
+      return NextResponse.json({ error: "Failed to resolve merchant configuration" }, { status: 500 });
+    }
+
+    const keySecret = tenant.razorpay_key_secret;
+
+    // Graceful verification bypass for Sandbox emulations
     if (!keySecret) {
-      console.warn("RAZORPAY_KEY_SECRET missing. Verifying mock payment transaction.");
-      
-      // If we used a mock checkout, bypass cryptographic check and update database
+      console.warn("Dynamic Key Secret is missing. Processing transaction in Sandbox mode.");
       if (razorpay_order_id?.startsWith("mock_order_")) {
         const { data: updatedOrder, error: updateError } = await supabase
           .from("orders")
@@ -34,14 +46,13 @@ export async function POST(req: NextRequest) {
           .select()
           .single();
 
-        if (updateError) return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+        if (updateError) return NextResponse.json({ error: "Failed to verify transaction" }, { status: 500 });
         return NextResponse.json({ success: true, order: updatedOrder });
       }
-      
-      return NextResponse.json({ error: "Secret key missing on host environment" }, { status: 500 });
+      return NextResponse.json({ error: "Credentials not configured on server" }, { status: 500 });
     }
 
-    // Standard Cryptographic Signature Verification
+    // Cryptographical signature check using merchant's private secret
     const text = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", keySecret)
@@ -63,11 +74,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (updateError) {
-      console.error("Supabase update error:", updateError);
       return NextResponse.json({ error: "Failed to update order status" }, { status: 500 });
     }
 
-    // Trigger kitchen notification securely from backend
+    // Trigger kitchen notification securely
     try {
       await fetch("https://iklseexyzfqkgfuyvfjg.supabase.co/functions/v1/notify-kitchen", {
         method: "POST",

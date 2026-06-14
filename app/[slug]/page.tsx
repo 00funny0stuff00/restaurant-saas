@@ -33,7 +33,7 @@ export default function RestaurantPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [orderType, setOrderType] = useState("takeaway");
-  const [paymentMethod, setPaymentMethod] = useState("online"); // defaults to online payment
+  const [paymentMethod, setPaymentMethod] = useState("online");
   const [tableNumber, setTableNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([]);
@@ -48,9 +48,17 @@ export default function RestaurantPage() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: tenantData } = await supabase.from("tenants").select("*").eq("slug", slug).single();
+      // SECURITY: Explicitly query only public columns. NEVER load razorpay_key_secret onto client.
+      const { data: tenantData } = await supabase.from("tenants")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled")
+        .eq("slug", slug)
+        .single();
+
       if (!tenantData) { setLoading(false); return; }
       setTenant(tenantData);
+
+      // Default the payment method based on merchant settings
+      setPaymentMethod(tenantData.online_payments_enabled ? "online" : "counter");
 
       const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
       if (sub) {
@@ -142,7 +150,6 @@ export default function RestaurantPage() {
     setProcessingPayment(true);
     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
     
-    // Create initial order record with state depending on cash/counter or online choice
     const initialStatus = paymentMethod === "online" ? "pending_payment" : "new";
 
     const { data, error } = await supabase.from("orders").insert([{
@@ -159,7 +166,7 @@ export default function RestaurantPage() {
       return; 
     }
 
-    // SCENARIO A: Cash/Counter payment method selected
+    // SCENARIO A: Counter Payment (Or Direct UPI verification by staff)
     if (paymentMethod === "counter") {
       setOrderNumber(data.id);
       setScreen("success");
@@ -186,11 +193,11 @@ export default function RestaurantPage() {
       return;
     }
 
-    // SCENARIO B: Razorpay Online payment method selected
+    // SCENARIO B: Razorpay Checkout with Merchant's Custom Key ID
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) {
       setProcessingPayment(false);
-      alert("Failed to load Razorpay payment SDK. Please check your internet connection.");
+      alert("Failed to load Razorpay payment SDK.");
       return;
     }
 
@@ -198,18 +205,43 @@ export default function RestaurantPage() {
       const orderRes = await fetch("/api/razorpay/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: total, orderId: data.id }),
+        body: JSON.stringify({ amount: total, orderId: data.id, tenantSlug: slug }),
       });
       const razorpayOrder = await orderRes.json();
 
       if (razorpayOrder.error) throw new Error(razorpayOrder.error);
 
+      // Fallback for mock checkout mode on development or empty keys
+      if (razorpayOrder.isMock) {
+        alert("🔒 Development sandbox mode. Emulating successful transaction.");
+        const verifyRes = await fetch("/api/razorpay/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: razorpayOrder.id,
+            razorpay_payment_id: "mock_payment_id",
+            razorpay_signature: "mock_signature",
+            orderId: data.id,
+            tenantSlug: slug,
+          }),
+        });
+        const verifyResult = await verifyRes.json();
+        if (verifyResult.success) {
+          setOrderNumber(data.id);
+          setScreen("success");
+        } else {
+          alert("Mock transaction verification failed.");
+        }
+        setProcessingPayment(false);
+        return;
+      }
+
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: tenant.razorpay_key_id, // Dynamically loaded public Key ID
         amount: Math.round(total * 100),
         currency: "INR",
-        name: tenant?.name || "EchoKitchen",
-        description: `Token Number #${data.id}`,
+        name: tenant.name,
+        description: `Order Token #${data.id}`,
         order_id: razorpayOrder.id,
         handler: async function (response) {
           try {
@@ -230,7 +262,7 @@ export default function RestaurantPage() {
               setOrderNumber(data.id);
               setScreen("success");
             } else {
-              alert("Payment verification failed. Please show staff your proof of payment.");
+              alert("Payment verification failed.");
             }
           } catch (err) {
             alert("Error verifying payment.");
@@ -256,7 +288,7 @@ export default function RestaurantPage() {
       paymentWindow.open();
     } catch (err) {
       setProcessingPayment(false);
-      alert("Error initiating Razorpay. Please choose Pay at Counter or try again.");
+      alert("Payment gateway error. Please pay at counter or try again.");
       console.error(err);
     }
   };
@@ -333,7 +365,7 @@ export default function RestaurantPage() {
         <a href={`/${slug}/order/${orderNumber}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
           Track your order →
         </a>
-        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); setPaymentMethod("online"); setNotes(""); }}>
+        <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); setPaymentMethod(tenant.online_payments_enabled ? "online" : "counter"); setNotes(""); }}>
           Order again
         </button>
       </div>
@@ -403,14 +435,16 @@ export default function RestaurantPage() {
         <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
       )}
 
-      {/* Payment Selection Selector */}
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Method</p>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button style={s.typeBtn(paymentMethod === "online")} onClick={() => setPaymentMethod("online")}>💳 Pay Online</button>
-          <button style={s.typeBtn(paymentMethod === "counter")} onClick={() => setPaymentMethod("counter")}>💵 Pay at Counter</button>
+      {/* Conditional Payment Selection */}
+      {tenant.online_payments_enabled && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Method</p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button style={s.typeBtn(paymentMethod === "online")} onClick={() => setPaymentMethod("online")}>💳 Pay Online</button>
+            <button style={s.typeBtn(paymentMethod === "counter")} onClick={() => setPaymentMethod("counter")}>💵 Pay at Counter</button>
+          </div>
         </div>
-      </div>
+      )}
 
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
@@ -486,7 +520,7 @@ export default function RestaurantPage() {
                   <p style={s.price}>₹{item.price}</p>
                   {inCart ? (
                     <div style={s.qtyRow}>
-                      <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
+                      <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}></button>
                       <span style={{ fontWeight: 700, fontSize: 14 }}>{inCart.qty}</span>
                       <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
                     </div>

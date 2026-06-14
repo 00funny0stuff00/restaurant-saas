@@ -1,34 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import Razorpay from "razorpay";
+import { createClient } from "@supabase/supabase-js";
 
-// Forces Next.js to skip static build-time evaluation
 export const dynamic = "force-dynamic";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const { amount, orderId, tenantSlug } = await req.json();
 
-    // Graceful fallback for testing/onboarding without active keys
+    if (!amount || !orderId || !tenantSlug) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // SECURITY: Load this restaurant's specific credentials at runtime
+    const { data: tenant, error: tenantError } = await supabase
+      .from("tenants")
+      .select("razorpay_key_id, razorpay_key_secret")
+      .eq("slug", tenantSlug)
+      .single();
+
+    if (tenantError || !tenant) {
+      return NextResponse.json({ error: "Failed to resolve merchant configuration" }, { status: 500 });
+    }
+
+    const keyId = tenant.razorpay_key_id;
+    const keySecret = tenant.razorpay_key_secret;
+
+    // Graceful fallback to emulation mode if merchant hasn't saved credentials yet
     if (!keyId || !keySecret) {
-      console.warn("Razorpay credentials missing. Generating a sandbox mock order ID.");
+      console.warn(`Merchant ${tenantSlug} has empty payment keys. Triggering Sandbox emulation.`);
       return NextResponse.json({ 
         id: "mock_order_" + Math.random().toString(36).substring(7),
         isMock: true 
       });
     }
 
-    // Instantiating Razorpay inside the handler prevents build-time failures
     const razorpay = new Razorpay({
       key_id: keyId,
       key_secret: keySecret,
     });
-
-    const { amount, orderId } = await req.json();
-
-    if (!amount || !orderId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
 
     const options = {
       amount: Math.round(amount * 100), // convert INR to paise
