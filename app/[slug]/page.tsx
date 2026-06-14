@@ -49,11 +49,11 @@ export default function RestaurantPage() {
   useEffect(() => {
     // Inside app/[slug]/page.tsx, replace the loadData() function inside useEffect with this:
 async function loadData() {
-  // SECURITY: Explicitly query only public columns. NEVER load razorpay_key_secret onto client.
-  const { data: tenantData, error: tenantError } = await supabase.from("tenants")
-    .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled")
-    .eq("slug", slug)
-    .single();
+  // SECURITY: Explicitly query only public columns.
+      const { data: tenantData, error: tenantError } = await supabase.from("tenants")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled")
+        .eq("slug", slug)
+        .single();
 
   if (tenantError) {
     console.error("Supabase Tenant Query Error:", tenantError.message);
@@ -63,9 +63,12 @@ async function loadData() {
 
   setTenant(tenantData);
 
-  // Default payment method based on merchant configuration
-  setPaymentMethod(tenantData.online_payments_enabled ? "online" : "counter");
-
+      // Safe Dynamic Payment Method Fallback
+      if (tenantData.online_payments_enabled && !tenantData.cash_payments_enabled) {
+        setPaymentMethod("online");
+      } else {
+        setPaymentMethod("counter");
+      }
   const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
   if (sub) {
     const expires = new Date(sub.expires_at);
@@ -441,8 +444,8 @@ async function loadData() {
         <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
       )}
 
-      {/* Direct Key Payments Toggle Switch */}
-      {tenant.online_payments_enabled && (
+      {/* Conditional Payment Selection Toggle */}
+      {tenant.online_payments_enabled && tenant.cash_payments_enabled && (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Method</p>
           <div style={{ display: "flex", gap: 10 }}>
@@ -451,7 +454,7 @@ async function loadData() {
           </div>
         </div>
       )}
-
+      
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
 

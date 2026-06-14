@@ -47,11 +47,15 @@ export default function AdminPage() {
   const [kitchenPin, setKitchenPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
-  // Direct Key Payments Settings
+// Direct Key Payments Settings
   const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(false);
+  const [cashPaymentsEnabled, setCashPaymentsEnabled] = useState(true); // Added for cash settings
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
   const [savingPayments, setSavingPayments] = useState(false);
+
+  // New production domain mapping
+  const base = "https://www.echotakeout.com";
 
   // Synced Web Printing Settings
   const [printEnabled, setPrintEnabled] = useState(false);
@@ -99,8 +103,9 @@ export default function AdminPage() {
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       setKitchenPin(t?.kitchen_pin ?? "");
 
-      // Load payments
+      // Load payment configuration
       setOnlinePaymentsEnabled(t?.online_payments_enabled ?? false);
+      setCashPaymentsEnabled(t?.cash_payments_enabled ?? true); // Added
       setRazorpayKeyId(t?.razorpay_key_id ?? "");
       setRazorpayKeySecret(t?.razorpay_key_secret ?? "");
 
@@ -167,15 +172,23 @@ export default function AdminPage() {
     alert("Settings saved!");
   }
 
+  // Save changes to Merchant Payments Configuration
   async function savePayments() {
+    // Safety check: Prevent disabling both cash and online payments
+    if (!onlinePaymentsEnabled && !cashPaymentsEnabled) {
+      return alert("You must enable at least one payment method (Cash or Online Payments).");
+    }
+
     setSavingPayments(true);
     const { error } = await supabase.from("tenants").update({
       online_payments_enabled: onlinePaymentsEnabled,
+      cash_payments_enabled: cashPaymentsEnabled, // Added
       razorpay_key_id: razorpayKeyId.trim() || null,
       razorpay_key_secret: razorpayKeySecret.trim() || null,
     }).eq("slug", slug);
+    
     setSavingPayments(false);
-    if (error) return alert("Error saving credentials.");
+    if (error) return alert("Error saving payment configuration.");
     alert("Payment settings saved!");
   }
 
@@ -424,47 +437,54 @@ export default function AdminPage() {
     <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
     <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
 
+    {/* Onboarding Checklist for Razorpay Compliance */}
+    {onlinePaymentsEnabled && (
+      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+        <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
+        <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
+          <li style={{ marginBottom: "6px" }}>
+            Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://www.echotakeout.com/{slug}</strong>
+          </li>
+          <li style={{ marginBottom: "6px" }}>
+            Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
+          </li>
+          <li>
+            Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
+          </li>
+        </ol>
+      </div>
+    )}
+
+    {/* Cash Payments Configuration */}
+    <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
+    <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+      Allow customers to pay at the register/counter upon collection. Disabling this forces online-only checkouts.
+    </p>
+
+    {/* Online Payments Configuration */}
     <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
     <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
       Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
     </p>
 
-    {/* Conditionally Render Checklist & Credentials Box ONLY when enabled */}
+    {/* Conditionally Render Credentials Box */}
     {onlinePaymentsEnabled && (
-      <>
-        {/* Onboarding Checklist for Razorpay Compliance */}
-        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
-          <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
-            <li style={{ marginBottom: "6px" }}>
-              Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://echotakeout.com/{slug}</strong>
-            </li>
-            <li style={{ marginBottom: "6px" }}>
-              Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
-            </li>
-            <li>
-              Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
-            </li>
-          </ol>
-        </div>
+      <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
+        <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
+        <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
+          Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
+        </p>
 
-        <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
-          <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
-          <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
-            Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
-          </p>
+        <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
+        <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
 
-          <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
-          <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
-
-          <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
-          <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
-        </div>
-      </>
+        <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
+        <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
+      </div>
     )}
 
     <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
-      {savingPayments ? "Saving configuration..." : "Save Payment Configuration"}
+      {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
     </button>
   </div>
 )}
