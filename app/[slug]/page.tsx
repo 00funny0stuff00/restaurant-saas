@@ -113,33 +113,41 @@ export default function RestaurantPage() {
   }, [slug]);
 
   // Stepper Adder: Supports regular increments (+1) & weight increments (+250g)
+  // REPLACE your addToCart and removeFromCart functions with these versions:
   const addToCart = (item) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === item.name);
       if (existing) {
-        if (item.by_weight) {
+        if (existing.by_weight) {
           const newWeight = (parseInt(existing.qty) || 0) + 250;
           return prev.map((i) => i.name === item.name ? { ...i, qty: newWeight } : i);
         }
-        return prev.map((i) => i.name === item.name ? { ...i, qty: i.qty + 1 } : i);
+        const currentQty = parseInt(existing.qty) || 0;
+        return prev.map((i) => i.name === item.name ? { ...i, qty: currentQty + 1 } : i);
       }
-      const initialQty = item.by_weight ? 250 : 1; // Start at 250g for sweets/snacks
+      const initialQty = item.by_weight ? 250 : 1;
       return [...prev, { ...item, qty: initialQty }];
     });
   };
 
-  // Stepper Remover: Supports regular decrements (-1) & weight decrements (-250g)
-  const removeFromCart = (itemName) => {
+  const removeFromCart = (itemOrName) => {
+    // Dynamically resolve whether we received a string name or a full item object
+    const targetName = typeof itemOrSelf === "object" && itemOrName ? itemOrName.name : itemOrName;
+    const nameToCheck = typeof itemOrName === "string" ? itemOrName : (itemOrName?.name || itemOrName);
+
     setCart((prev) => {
-      const existing = prev.find((i) => i.name === itemName);
+      const existing = prev.find((i) => i.name === nameToCheck);
       if (!existing) return prev;
+
       if (existing.by_weight) {
         const newWeight = (parseInt(existing.qty) || 0) - 250;
-        if (newWeight <= 0) return prev.filter((i) => i.name !== itemName);
-        return prev.map((i) => i.name === itemName ? { ...i, qty: newWeight } : i);
+        if (newWeight <= 0) return prev.filter((i) => i.name !== nameToCheck);
+        return prev.map((i) => i.name === nameToCheck ? { ...i, qty: newWeight } : i);
       }
-      if (existing.qty === 1) return prev.filter((i) => i.name !== itemName);
-      return prev.map((i) => i.name === itemName ? { ...i, qty: i.qty - 1 } : i);
+
+      const currentQty = parseInt(existing.qty) || 0;
+      if (currentQty <= 1) return prev.filter((i) => i.name !== nameToCheck);
+      return prev.map((i) => i.name === nameToCheck ? { ...i, qty: currentQty - 1 } : i);
     });
   };
 
