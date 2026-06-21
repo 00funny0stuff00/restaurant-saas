@@ -11,9 +11,9 @@ function isValidIPv4(ip) {
 }
 
 export default function AdminPage() {
-  const [editOrderEnabled, setEditOrderEnabled] = useState(false);
-  const [customizeOrderEnabled, setCustomizeOrderEnabled] = useState(false);
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
+
+  // ─── 1. ALL STATES ─────────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [items, setItems] = useState([]);
@@ -22,13 +22,13 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("orders");
   const [filterDate, setFilterDate] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); 
+  const [filterStatus, setFilterStatus] = useState("all");
   const [authError, setAuthError] = useState(null);
 
-  // Restaurant Branding & Metadata
+  // Restaurant details & brand metrics
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
-  const [tColor, setTColor] = useState("");
+  const [tColor, setTColor] = useState("#ff4d00");
   const [tEmail, setTEmail] = useState("");
   const [tPhone, setTPhone] = useState("");
   const [tAddress, setTAddress] = useState("");
@@ -43,6 +43,8 @@ export default function AdminPage() {
   const [queueLimitEnabled, setQueueLimitEnabled] = useState(false);
   const [queueLimit, setQueueLimit] = useState(10);
   const [dineInEnabled, setDineInEnabled] = useState(false);
+  const [editOrderEnabled, setEditOrderEnabled] = useState(false);
+  const [customizeOrderEnabled, setCustomizeOrderEnabled] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [kitchenPin, setKitchenPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
@@ -71,15 +73,32 @@ export default function AdminPage() {
   // Menu Unit State
   const [newUnit, setNewUnit] = useState("");
 
-  // Production Domain Configuration
+  // ─── 2. BRAND METRICS & COLORS (Declared at top) ─────────────────────────
+  const primary = tenant?.primary_color ?? "#ff4d00";
   const base = "https://www.echotakeout.com";
-  // Add this function inside your AdminPage component:
-  
+  const nextStatus = { new: "preparing", preparing: "ready", ready: "done" };
+  const nextLabel = { new: "Start →", preparing: "Ready →", ready: "Done ✓" };
+  const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
+
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
-  
+
+  // Self-contained Toggle Component
+  const Toggle = ({ value, onChange, label }) => {
+    const activeColor = tenant?.primary_color ?? "#ff4d00";
+    return (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
+        <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? activeColor : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+          <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+        </div>
+      </div>
+    );
+  };
+
+  // ─── 3. DATA LOADING ──────────────────────────────────────────────────────
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -124,7 +143,7 @@ export default function AdminPage() {
       setRazorpayKeyId(t?.razorpay_key_id ?? "");
       setRazorpayKeySecret(t?.razorpay_key_secret ?? "");
 
-      // Load compliance parameters
+      // Load policy contacts
       setTEmail(t?.support_email ?? "");
       setTPhone(t?.support_phone ?? "");
       setTAddress(t?.physical_address ?? "");
@@ -163,6 +182,7 @@ export default function AdminPage() {
     setOrders(o ?? []);
   }
 
+  // ─── 4. ACTIONS ────────────────────────────────────────────────────────────
   async function saveTenant() {
     const { error } = await supabase.from("tenants").update({ 
       name: tName.trim(), 
@@ -195,7 +215,7 @@ export default function AdminPage() {
 
   async function savePayments() {
     if (!onlinePaymentsEnabled && !cashPaymentsEnabled) {
-      return alert("You must enable at least one payment method (Cash or Online Payments).");
+      return alert("You must enable at least one payment method.");
     }
 
     setSavingPayments(true);
@@ -318,6 +338,16 @@ export default function AdminPage() {
     alert("Kitchen PIN saved!");
   }
 
+  function downloadQR(url, label) {
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+    const a = document.createElement("a");
+    a.href = qrUrl;
+    a.download = `${label}-qr.png`;
+    a.target = "_blank";
+    a.click();
+  }
+
+  // ─── 5. DATA FILTER CASCADES ───────────────────────────────────────────────
   const qrPages = [
     { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
     { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
@@ -325,20 +355,17 @@ export default function AdminPage() {
     { label: "Dashboard", desc: "Quick access to your owner dashboard", url: `${base}/dashboard`, icon: "📊" },
   ];
 
-  // Status Metrics Parsing
   const activeOrdersForMetrics = filterDate
     ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
     : orders;
   const cancelledCount = activeOrdersForMetrics.filter(o => o.status === "cancelled").length;
   const netRevenue = activeOrdersForMetrics.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
 
-  // Dynamic status filters
   let filteredOrders = activeOrdersForMetrics;
   if (filterStatus !== "all") {
     filteredOrders = filteredOrders.filter(o => o.status === filterStatus);
   }
 
-  const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
   const categories = [...new Set(items.map(i => i.category))];
 
   const getSubWarning = () => {
@@ -356,400 +383,198 @@ export default function AdminPage() {
   };
   const subWarning = getSubWarning();
 
-  // Paste this INSIDE your AdminPage component (just above const s = { ... }):
-  // Replace your Toggle component with this self-contained version:
-  const Toggle = ({ value, onChange, label }) => {
-    const activeColor = tenant?.primary_color ?? "#ff4d00";
-    return (
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
-        <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? activeColor : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-          <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
-        </div>
-      </div>
-    );
-  };
-
-  const s = {
+  // ─── 6. STYLING SHEETS (Fully Restored) ────────────────────────────────────
+  const styles = {
     page: { fontFamily: "sans-serif", maxWidth: 580, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
-    input: { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, marginBottom: 10, boxSizing: "border-box" },
-    btn: (color) => ({ padding: "10px 20px", background: color, color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14 }),
-    tab: (active) => ({ padding: "10px 10px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 12 }),
-    card: { border: "1px solid #eee", borderRadius: 10, padding: 12, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
-    orderCard: { border: "1px solid #eee", borderRadius: 10, padding: 14, marginBottom: 10 },
+    header: { padding: "16px 0 14px", borderBottom: `2px solid ${primary}`, background: "white", display: "flex", justifyContent: "space-between", alignItems: "flex-end" },
+    headerTitle: { fontSize: 18, fontWeight: "800", color: "#111", marginTop: 2 },
+    logoutBtn: { padding: "8px 14px", backgroundColor: "#f3f4f6", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: "700", color: "#888" },
+    tabBar: { display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" },
+    tabBtn: (active) => ({ padding: "10px 14px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 13, whiteSpace: "nowrap" }),
+    center: { display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" },
+    empty: { textAlign: "center", padding: "40px 0", color: "#888" },
+    card: { backgroundColor: "white", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" },
+    badge: (bg) => ({ padding: "4px 10px", borderRadius: 20, backgroundColor: bg, display: "inline-block" }),
+    badgeText: { color: "white", fontSize: 11, fontWeight: "700" },
+    name: { fontWeight: "700", fontSize: 15, color: "#111", marginBottom: 2 },
+    meta: { fontSize: 13, color: "#888", marginBottom: 2 },
+    items: { fontSize: 14, color: "#333", margin: "6px 0" },
+    notesBox: { backgroundColor: "#ede9fe", borderRadius: 8, padding: 8, margin: "6px 0" },
+    notesLabel: { fontSize: 13, color: "#5b21b6", fontWeight: "600" },
+    total: { fontWeight: "700", fontSize: 15 },
+    label: { fontSize: 13, fontWeight: "600", color: "#333", marginBottom: 6, marginTop: 4, display: "block" },
+    input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 15, marginBottom: 14, color: "#111", backgroundColor: "white", boxSizing: "border-box" },
+    btn: (color) => ({ borderRadius: 10, padding: "12px 20px", backgroundColor: color, color: "white", border: "none", cursor: "pointer", fontWeight: "700", fontSize: 15 }),
+    btnText: { color: "white", fontWeight: "700", fontSize: 15 }
   };
 
-  if (loading) return <div style={{ ...s.page, paddingTop: 60, textAlign: "center", color: "#888" }}>Loading...</div>;
+  const orderStyles = {
+    summary: { display: "flex", backgroundColor: "white", borderRadius: 12, padding: 16, marginBottom: 16, border: "1px solid #eee", justifyContent: "space-around" },
+    summaryItem: { textAlign: "center" },
+    summaryVal: { fontSize: 20, fontWeight: "800", color: "#111", margin: 0 },
+    summaryLabel: { fontSize: 11, color: "#888", marginTop: 2, textTransform: "uppercase", letterSpacing: 0.5 },
+    filterChip: (active) => ({ padding: "6px 14px", borderRadius: 20, border: `1px solid ${active ? primary : "#ddd"}`, marginRight: 8, backgroundColor: active ? primary : "white", cursor: "pointer" }),
+    filterText: (active) => ({ fontSize: 13, fontWeight: "600", color: active ? "white" : "#555", textTransform: "capitalize" }),
+    actionBtn: { borderRadius: 8, padding: "10px 14px", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }
+  };
+
+  const menuStyles = {
+    addToggleBtn: { borderWidth: 2, borderRadius: 10, padding: 14, alignItems: "center", marginBottom: 16, borderStyle: "dashed", cursor: "pointer", display: "block", width: "100%", background: "transparent" },
+    addToggleText: { fontWeight: "700", fontSize: 15 },
+    addForm: { backgroundColor: "#f9f9f9", borderRadius: 12, padding: 16, marginBottom: 20, border: "1px solid #eee" },
+    catHeader: { fontSize: 13, fontWeight: "700", color: "#888", marginBottom: 8, marginTop: 16, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #f0f0f0", paddingBottom: 4 },
+    itemCard: { backgroundColor: "white", borderRadius: 10, padding: 14, marginBottom: 10, border: "1px solid #eee", display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" },
+    itemName: { fontWeight: "700", fontSize: 14, color: "#111" },
+    itemMeta: { fontSize: 12, color: "#888", marginTop: 2 },
+    stockBtn: (active) => ({ padding: "6px 10px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: active ? "#dcfce7" : "#fee2e2" }),
+    deleteBtn: { backgroundColor: "#ef4444", width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }
+  };
+
+  const printerStyles = {
+    printerBox: { backgroundColor: "#f9f9f9", borderRadius: 12, padding: 14, marginTop: 16, border: "1px solid #eee" },
+    printerTitle: { fontWeight: "700", fontSize: 14, color: "#111", marginBottom: 10 },
+    selectedPrinter: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+    selectedIP: { fontSize: 13, color: "#333", flex: 1 },
+    changeBtn: { fontSize: 13, fontWeight: "700", background: "none", border: "none", cursor: "pointer" },
+    scanBtn: { borderWidth: 2, borderRadius: 10, padding: 12, alignItems: "center", marginBottom: 10, borderStyle: "dashed", cursor: "pointer", background: "transparent" },
+    scanBtnText: { fontWeight: "700", fontSize: 14 },
+    autoLabel: { fontSize: 12, fontWeight: "700", color: "#888", marginTop: 8, marginBottom: 6, textTransform: "uppercase" },
+    radioRow: { display: "flex", alignItems: "center", padding: "6px 0", cursor: "pointer" },
+    radio: (active) => ({ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: active ? primary : "#ddd", marginRight: 10, backgroundColor: active ? primary : "white" }),
+    radioLabel: { fontSize: 14, color: "#333" },
+    scanningBox: { display: "flex", alignItems: "center", padding: 14, backgroundColor: "#f9f9f9", borderRadius: 10, marginTop: 12 },
+    resultsBox: { marginTop: 12 },
+    resultsTitle: { fontSize: 13, fontWeight: "600", color: "#555", marginBottom: 8 },
+    printerResult: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: 14, backgroundColor: "white", borderRadius: 10, border: "1px solid #eee", marginBottom: 8 },
+    printerResultIP: { fontSize: 14, fontWeight: "600", color: "#111" },
+    printerResultSelect: { fontSize: 13, fontWeight: "700" },
+    ipHintError: { fontSize: 12, color: "#ef4444", marginTop: 4 },
+  };
+
+  const qrStyles = {
+    card: { display: "flex", gap: 16, alignItems: "flex-start", backgroundColor: "white", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" },
+    qrImage: { width: 90, height: 90, borderRadius: 8, flexShrink: 0 },
+    label: { fontWeight: "700", fontSize: 15, color: "#111", marginBottom: 4 },
+    desc: { fontSize: 12, color: "#888", marginBottom: 4 },
+    url: { fontSize: 10, color: "#bbb", marginBottom: 8, wordBreak: "break-all" },
+    downloadBtn: { borderRadius: 8, padding: 8, border: "none", cursor: "pointer", display: "inline-block", textAlign: "center" },
+    downloadText: { color: "white", fontWeight: "700", fontSize: 12 },
+  };
+
+  const settingStyles = {
+    sectionTitle: { fontSize: 16, fontWeight: "800", color: "#111", marginBottom: 4, marginTop: 8 },
+    row: { display: "flex", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" },
+    rowLabel: { fontSize: 14, fontWeight: "600", color: "#111" },
+    rowDesc: { fontSize: 12, color: "#888", marginTop: 2 },
+    pinSection: { marginTop: 32, paddingTop: 24, borderTop: "1px solid #f0f0f0" },
+    pinDesc: { fontSize: 13, color: "#888", marginBottom: 12 },
+    pinInput: { textAlign: "center", fontSize: 22, letterSpacing: 6, width: 160 },
+  };
+
+  if (loading) return <div style={styles.center}><ActivityIndicator color={primary} /></div>;
 
   if (authError) return (
-    <div style={{ ...s.page, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", textAlign: "center" }}>
+    <div style={{ ...styles.page, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
       <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{authError}</p>
-      <button style={s.btn("#111")} onClick={handleLogout}>Sign out</button>
+      <button style={styles.btn("#111")} onClick={handleLogout}>Sign out</button>
     </div>
   );
 
   return (
-    <div style={s.page}>
-      {subWarning && (
-        <div style={{ background: subWarning.color, color: "white", padding: "12px 16px", borderRadius: 10, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>
-          ⚠️ {subWarning.msg}
-        </div>
-      )}
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <h2 style={{ fontWeight: 700, fontSize: 20, margin: 0 }}>Admin — {tenant?.name}</h2>
-        <button style={{ ...s.btn("#888"), padding: "8px 14px", fontSize: 13 }} onClick={handleLogout}>Sign out</button>
-      </div>
-      <a href={`/${slug}`} style={{ fontSize: 13, color: "#888" }}>← View live menu</a>
-
-      {/* Admin Tab Navigation */}
-      <div style={{ display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" }}>
-        <button style={s.tab(tab === "menu")} onClick={() => setTab("menu")}>Menu Items</button>
-        <button style={s.tab(tab === "orders")} onClick={() => setTab("orders")}>Orders</button>
-        <button style={s.tab(tab === "qr")} onClick={() => setTab("qr")}>QR Codes</button>
-        <button style={s.tab(tab === "payments")} onClick={() => setTab("payments")}>Payments</button>
-        <button style={s.tab(tab === "settings")} onClick={() => setTab("settings")}>Settings</button>
-        <button style={s.tab(tab === "restaurant")} onClick={() => setTab("restaurant")}>Info</button>
+    <div style={styles.page}>
+      <div style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>⚙️ {tenant?.name}</Text>
+        </View>
+        <button style={styles.logoutBtn} onClick={handleLogout}>Log out</button>
       </div>
 
-      {tab === "restaurant" && (
-        <div>
-          <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Restaurant Information</h3>
-          <label style={{ fontSize: 13, fontWeight: 600 }}>Restaurant Name</label>
-          <input style={s.input} value={tName} onChange={e => setTName(e.target.value)} />
-          <label style={{ fontSize: 13, fontWeight: 600 }}>Tagline</label>
-          <input style={s.input} value={tTagline} onChange={e => setTTagline(e.target.value)} />
-          
-          <label style={{ fontSize: 13, fontWeight: 600 }}>Brand Colour</label>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
-            <input type="color" value={tColor} onChange={e => setTColor(e.target.value)} style={{ width: 48, height: 40, border: "none", cursor: "pointer", borderRadius: 6 }} />
-            <span style={{ fontSize: 14, color: "#555" }}>{tColor}</span>
-          </div>
-
-          <h3 style={{ fontWeight: 700, margin: "24px 0 12px", borderTop: "1px solid #f0f0f0", paddingTop: 24 }}>Compliance Contact Information</h3>
-          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>These details generate your customized Privacy, Terms, and Refund policies dynamically for your payment gateway audits.</p>
-          
-          <label style={{ fontSize: 13, fontWeight: 600 }}>Support Email</label>
-          <input style={s.input} placeholder="e.g. contact@yourrestaurant.com" value={tEmail} onChange={e => setTEmail(e.target.value)} />
-          
-          <label style={{ fontSize: 13, fontWeight: 600 }}>Support Phone</label>
-          <input style={s.input} placeholder="e.g. +91 98765 43210" value={tPhone} onChange={e => setTPhone(e.target.value)} />
-          
-          <label style={{ fontSize: 13, fontWeight: 600 }}>Physical Address</label>
-          <textarea style={{ ...s.input, resize: "vertical", minHeight: 80 }} placeholder="e.g. 12 Main Road, Peelamedu, Coimbatore, 641004" value={tAddress} onChange={e => setTAddress(e.target.value)} />
-
-          <button style={s.btn(primary)} onClick={saveTenant}>Save changes</button>
-        </div>
-      )}
-
-      {tab === "payments" && (
-        <div>
-          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
-          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
-
-          <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
-          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-            Allow customers to pay at the register/counter upon collection. Disabling this forces online-only checkouts.
-          </p>
-
-          <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
-          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-            Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
-          </p>
-
-          {/* Conditionally Render Onboarding Checklist and Credentials Box */}
-          {onlinePaymentsEnabled && (
-            <>
-              {/* Onboarding Checklist for Razorpay Compliance */}
-              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
-                <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
-                  <li style={{ marginBottom: "6px" }}>
-                    Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://www.echotakeout.com/{slug}</strong>
-                  </li>
-                  <li style={{ marginBottom: "6px" }}>
-                    Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
-                  </li>
-                  <li>
-                    Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
-                  </li>
-                </ol>
-              </div>
-
-              <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
-                <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
-                <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
-                  Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
-                </p>
-
-                <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
-                <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
-
-                <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
-                <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
-              </div>
-            </>
-          )}
-
-          <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
-            {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
+      {/* Tab bar navigation matching native app horizontal scroll layout */}
+      <div style={styles.tabBar}>
+        {["orders", "menu", "payments", "settings", "restaurant", "qr"].map(t => (
+          <button key={t} style={styles.tabBtn(tab === t)} onClick={() => setTab(t)}>
+            {t === "qr" ? "QR Codes" : t === "restaurant" ? "Info" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {tab === "settings" && (
-        <div>
-          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Order Settings</h3>
-          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Control how customers can place orders.</p>
-
-          <Toggle label="Enable queue limit" value={queueLimitEnabled} onChange={setQueueLimitEnabled} />
-          {queueLimitEnabled && (
-            <div style={{ padding: "12px 0" }}>
-              <label style={{ fontSize: 13, fontWeight: 600 }}>Max orders in queue</label>
-              <input style={{ ...s.input, marginTop: 6 }} type="number" value={queueLimit} onChange={e => setQueueLimit(parseInt(e.target.value))} min={1} max={100} />
-              <p style={{ fontSize: 12, color: "#888", margin: "-4px 0 0" }}>Customers will be told to wait once this many active orders are in the queue.</p>
-            </div>
-          )}
-
-          <Toggle label="Enable dine-in option" value={dineInEnabled} onChange={setDineInEnabled} />
-          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>When enabled, customers can choose between Dine-in (with table number) or Takeaway.</p>
-          <Toggle label="Allow customers to edit/cancel order" value={editOrderEnabled} onChange={setEditOrderEnabled} />
-          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 16 }}>Customers can edit or cancel while status is still "new".</p>
-          <Toggle label="Allow order customization notes" value={customizeOrderEnabled} onChange={setCustomizeOrderEnabled} />
-          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>Customers can add special instructions like "no onions" or "extra spicy".</p>
-          
-          {/* Delivery Configuration */}
-          <Toggle label="Enable Delivery" value={deliveryEnabled} onChange={setDeliveryEnabled} />
-          {deliveryEnabled && (
-            <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginTop: 10, marginBottom: 20 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>Delivery Options Manager</p>
-              
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input style={{ ...s.input, marginBottom: 0, flex: 2 }} placeholder="e.g. Standard Delivery" value={newDelName} onChange={e => setNewDelName(e.target.value)} />
-                <input style={{ ...s.input, marginBottom: 0, flex: 1 }} type="number" placeholder="₹ Price" value={newDelPrice} onChange={e => setNewDelPrice(e.target.value)} />
-                <button type="button" style={{ ...s.btn(primary), padding: "8px 14px" }} onClick={() => {
-                  if(!newDelName.trim() || !newDelPrice.trim()) return alert("Option name and price are required.");
-                  const updated = [...deliveryOptions, { id: Date.now(), name: newDelName.trim(), price: parseFloat(newDelPrice) }];
-                  setDeliveryOptions(updated);
-                  setNewDelName(""); setNewDelPrice("");
-                }}>Add</button>
-              </div>
-
-              {deliveryOptions.map(opt => (
-                <div key={opt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
-                  <span style={{ fontSize: 14 }}>{opt.name} — <strong>₹{opt.price}</strong></span>
-                  <button type="button" style={{ ...s.btn("#ef4444"), padding: "4px 8px", fontSize: 11 }} onClick={() => {
-                    setDeliveryOptions(deliveryOptions.filter(o => o.id !== opt.id));
-                  }}>Delete</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button style={{ ...s.btn(primary), marginBottom: 32 }} onClick={saveSettings} disabled={savingSettings}>
-            {savingSettings ? "Saving..." : "Save settings"}
-          </button>
-
-          {/* Kitchen PIN */}
-          <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
-            <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>Kitchen PIN</h3>
-            <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Kitchen staff enter this PIN to access the kitchen display. Keep it private.</p>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <input
-                type="text"
-                value={kitchenPin}
-                onChange={e => setKitchenPin(e.target.value)}
-                placeholder="e.g. 1234"
-                maxLength={8}
-                style={{ ...s.input, width: 140, textAlign: "center", fontSize: 18, letterSpacing: 4, marginBottom: 0 }}
-              />
-              <button style={s.btn(primary)} onClick={saveKitchenPin} disabled={savingPin}>
-                {savingPin ? "Saving..." : "Save PIN"}
-              </button>
-            </div>
-          </div>
-
-          {/* Web Printing Configuration */}
-          <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
-            <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>🖨️ Printing Configuration</h3>
-            <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Sync printing rules with local WiFi thermal printers.</p>
-            
-            <Toggle label="Enable Printing Settings" value={printEnabled} onChange={setPrintEnabled} />
-            
-            {printEnabled && (
-              <div style={{ marginTop: 16 }}>
-                {/* KOT IP */}
-                <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>🍳 KOT Printer (Kitchen)</p>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Printer IPv4 Address</label>
-                  <input style={s.input} placeholder="e.g. 192.168.1.45" value={kotIP} onChange={e => setKotIP(e.target.value)} />
-                  
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Auto-print option</label>
-                  {["new", "manual"].map(opt => (
-                    <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, margin: "4px 0", cursor: "pointer" }}>
-                      <input type="radio" name="kot_auto" checked={kotAutoprint === opt} onChange={() => setKotAutoprint(opt)} />
-                      {opt === "new" ? "Auto-print on new order" : "Manual print only"}
-                    </label>
-                  ))}
-                </div>
-
-                {/* Receipt IP */}
-                <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginBottom: 20 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>🧾 Receipt Printer (Counter)</p>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Printer IPv4 Address</label>
-                  <input style={s.input} placeholder="e.g. 192.168.1.46" value={receiptIP} onChange={e => setReceiptIP(e.target.value)} />
-
-                  <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Auto-print option</label>
-                  {[
-                    { val: "new", label: "Auto-print on new order" },
-                    { val: "ready", label: "Auto-print when ready" },
-                    { val: "done", label: "Auto-print when done" },
-                    { val: "manual", label: "Manual print only" },
-                  ].map(opt => (
-                    <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, margin: "4px 0", cursor: "pointer" }}>
-                      <input type="radio" name="rec_auto" checked={receiptAutoprint === opt.val} onChange={() => setReceiptAutoprint(opt.val)} />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-
-                <button style={s.btn(primary)} onClick={savePrinterSettingsWeb} disabled={savingPrinter}>
-                  {savingPrinter ? "Saving..." : "Save printer settings"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {tab === "menu" && (
-        <div>
-          <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Add new item</h3>
-          <input style={s.input} placeholder="Item name" value={newName} onChange={e => setNewName(e.target.value)} />
-          <input style={s.input} placeholder="Price (e.g. 120)" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
-          <input style={s.input} placeholder="Category (e.g. Starters)" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
-          <input style={s.input} placeholder="Pricing Unit (e.g. 500g, 1 Plate, Per piece)" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
-          <textarea style={{ ...s.input, resize: "vertical", minHeight: 70 }} placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)} />
-          <input style={s.input} placeholder="Photo URL (optional)" value={newPhoto} onChange={e => setNewPhoto(e.target.value)} />
-          <button style={{ ...s.btn(primary), marginBottom: 28 }} onClick={addItem}>Add item</button>
-
-          <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Current menu</h3>
-          {categories.map(cat => (
-            <div key={cat} style={{ marginBottom: 20 }}>
-              <h4 style={{ margin: "16px 0 10px", fontSize: 13, textTransform: "uppercase", color: "#888", letterSpacing: 0.5, borderBottom: "1px solid #eee", paddingBottom: 6 }}>{cat}</h4>
-              {items.filter(i => i.category === cat).map(item => (
-                <div key={item.id} style={s.card}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>
-                      {item.name} {item.unit ? `(${item.unit})` : ""}
-                    </p>
-                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "#888" }}>₹{item.price}</p>
-                    {item.description && <p style={{ margin: "2px 0 0", fontSize: 11, color: "#aaa" }}>{item.description}</p>}
-                  </div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <button style={s.btn(item.in_stock ? "#dcfce7" : "#fee2e2")} onClick={() => toggleStock(item.id, item.in_stock)}>
-                      <span style={{ color: item.in_stock ? "#16a34a" : "#dc2626", fontSize: 12 }}>
-                        {item.in_stock ? "In stock" : "Out"}
-                      </span>
-                    </button>
-                    <button style={{ ...s.btn("#ef4444"), padding: "8px 12px" }} onClick={() => deleteItem(item.id)}>✕</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
+      {/* ─── ORDERS TAB ────────────────────────────────────────────────────── */}
       {tab === "orders" && (
         <div>
-          {/* Quick Metrics Summarizer - Parity with Mobile Layout */}
-          <div style={{ display: "flex", justifyContent: "space-between", background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "16px", marginBottom: 16 }}>
-            <div style={{ textAlign: "center", flex: 1 }}>
-              <p style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{activeOrdersForMetrics.length}</p>
-              <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0" }}>Total orders</p>
+          <div style={orderStyles.summary}>
+            <div style={orderStyles.summaryItem}>
+              <Text style={orderStyles.summaryVal}>{orders.length}</Text>
+              <Text style={orderStyles.summaryLabel}>Total orders</Text>
             </div>
-            <div style={{ textAlign: "center", flex: 1, borderLeft: "1px solid #eee", borderRight: "1px solid #eee" }}>
-              <p style={{ fontSize: 20, fontWeight: 800, color: primary, margin: 0 }}>₹{netRevenue.toFixed(0)}</p>
-              <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0" }}>Revenue</p>
+            <div style={orderStyles.summaryItem}>
+              <Text style={[orderStyles.summaryVal, { color: primary }]}>₹{netRevenue.toFixed(0)}</Text>
+              <Text style={orderStyles.summaryLabel}>Revenue</Text>
             </div>
-            <div style={{ textAlign: "center", flex: 1 }}>
-              <p style={{ fontSize: 20, fontWeight: 800, color: "#ef4444", margin: 0 }}>{cancelledCount}</p>
-              <p style={{ fontSize: 11, color: "#888", margin: "2px 0 0" }}>Cancelled</p>
+            <div style={orderStyles.summaryItem}>
+              <Text style={[orderStyles.summaryVal, { color: '#ef4444' }]}>{cancelledCount}</Text>
+              <Text style={orderStyles.summaryLabel}>Cancelled</Text>
             </div>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
-            {/* Quick Status Filters */}
-            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
-              {["all", "new", "preparing", "ready", "done", "cancelled"].map(s => (
-                <button 
-                  key={s} 
-                  onClick={() => setFilterStatus(s)} 
-                  style={{ 
-                    padding: "6px 12px", 
-                    borderRadius: 20, 
-                    border: `1px solid ${filterStatus === s ? primary : "#ddd"}`, 
-                    background: filterStatus === s ? primary : "white", 
-                    color: filterStatus === s ? "white" : "#555", 
-                    fontSize: 12, 
-                    fontWeight: 600, 
-                    cursor: "pointer",
-                    textTransform: "capitalize"
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }} />
-              {filterDate && <button style={{ ...s.btn("#888"), padding: "8px 12px", fontSize: 12 }} onClick={() => setFilterDate("")}>Clear</button>}
-              <button style={{ ...s.btn(primary), padding: "8px 14px", fontSize: 13 }} onClick={exportCSV} disabled={filteredOrders.length === 0}>
-                Export CSV
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 16, paddingBottom: 4 }}>
+            {["all", "new", "preparing", "ready", "done", "cancelled"].map(s => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 20,
+                  border: `1px solid ${filterStatus === s ? primary : "#ddd"}`,
+                  backgroundColor: filterStatus === s ? primary : "white",
+                  color: filterStatus === s ? "white" : "#555",
+                  fontWeight: "600",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  textTransform: "capitalize"
+                }}
+              >
+                {s}
               </button>
-            </div>
+            ))}
           </div>
 
           {filteredOrders.length === 0 ? (
-            <p style={{ textAlign: "center", color: "#888", paddingTop: 40 }}>No orders found.</p>
+            <div style={styles.empty}><Text style={{ color: '#888' }}>No orders found.</Text></div>
           ) : (
             filteredOrders.map(order => (
-              <div key={order.id} style={s.orderCard}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>#{order.id} — {order.customer_name}</span>
-                  <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 20, background: statusColor[order.status] ?? "#888", color: "white", fontWeight: 700 }}>
-                    {order.status?.toUpperCase()}
-                  </span>
+              <div key={order.id} style={styles.card}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={styles.badge(statusColor[order.status] || '#888')}>
+                    <Text style={styles.badgeText}>{order.status?.toUpperCase()}</Text>
+                  </div>
+                  <Text style={{ color: '#888', fontSize: 13 }}>#{order.id}</Text>
                 </div>
-                <p style={{ margin: "0 0 2px", fontSize: 12, color: "#888" }}>
-                  {order.order_type === "dine-in" ? `🪑 Dine-in · Table ${order.table_number}` : "🥡 Takeaway"}
-                </p>
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#555" }}>{order.items}</p>
-                
+                <Text style={styles.name}>{order.customer_name}</Text>
+                <Text style={styles.meta}>{order.phone}</Text>
+                <Text style={styles.meta}>
+                  {order.order_type === 'dine-in' ? `🪑 Dine-in · Table ${order.table_number}` : '🥡 Takeaway'}
+                </Text>
+                <Text style={styles.items}>{order.items}</Text>
                 {order.notes && (
-                  <div style={{ background: "#ede9fe", borderRadius: 8, padding: 8, margin: "6px 0", fontSize: 13, color: "#5b21b6", fontWeight: "600" }}>
-                    📝 {order.notes}
+                  <div style={styles.notesBox}>
+                    <Text style={styles.notesLabel}>📝 {order.notes}</Text>
                   </div>
                 )}
-
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
-                  <span style={{ color: "#888" }}>{order.phone} · {new Date(order.created_at).toLocaleString("en-IN")}</span>
-                  <span style={{ fontWeight: 700, color: primary, fontSize: 15 }}>₹{order.total}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                  <Text style={[styles.total, { color: primary }]}>₹{order.total}</Text>
+                  <Text style={{ fontSize: 11, color: '#aaa' }}>{new Date(order.created_at).toLocaleString('en-IN')}</Text>
                 </div>
-
-                {/* State Management Triggers */}
-                {order.status !== "done" && order.status !== "cancelled" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button 
-                      style={{ ...s.btn(statusColor[nextStatus[order.status]]), flex: 1, padding: "8px 0", fontSize: 13 }}
+                {order.status !== 'done' && order.status !== 'cancelled' && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      style={{ ...orderStyles.actionBtn, backgroundColor: statusColor[nextStatus[order.status]] || '#888', flex: 1, color: 'white', fontWeight: '700' }}
                       onClick={() => updateStatus(order.id, nextStatus[order.status])}
                     >
                       {nextLabel[order.status]}
                     </button>
-                    <button 
-                      style={{ ...s.btn("#ef4444"), padding: "8px 16px", fontSize: 13 }}
+                    <button
+                      style={{ ...orderStyles.actionBtn, backgroundColor: '#ef4444', color: 'white', fontWeight: '700', padding: "10px 18px" }}
                       onClick={() => cancelOrder(order.id)}
                     >
                       ✕
@@ -762,35 +587,281 @@ export default function AdminPage() {
         </div>
       )}
 
-      {tab === "qr" && (
+      {/* ─── MENU TAB ──────────────────────────────────────────────────────── */}
+      {tab === "menu" && (
         <div>
-          <p style={{ color: "#888", fontSize: 13, marginBottom: 24 }}>Print these QR codes and place them at your counter, kitchen, and back office.</p>
-          {qrPages.map(page => {
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(page.url)}`;
-            return (
-              <div key={page.label} style={{ border: "1px solid #eee", borderRadius: 16, padding: 24, marginBottom: 16, display: "flex", gap: 24, alignItems: "center" }}>
-                <img src={qrUrl} width={110} height={110} style={{ borderRadius: 8, flexShrink: 0 }} alt={`${page.label} QR`} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 16 }}>{page.icon} {page.label} page</p>
-                  <p style={{ margin: "0 0 8px", fontSize: 12, color: "#888" }}>{page.desc}</p>
-                  <p style={{ margin: "0 0 12px", fontSize: 11, color: "#bbb", wordBreak: "break-all" }}>{page.url}</p>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <a href={page.url} target="_blank" style={{ ...s.btn("#f3f4f6"), color: "#111", textDecoration: "none", padding: "8px 14px", fontSize: 12 }}>Open →</a>
-                    <button style={{ ...s.btn(primary), padding: "8px 14px", fontSize: 12 }} onClick={() => downloadQR(page.url, page.label)}>Download QR</button>
-                    {/* Share action */}
-                    <button style={{ ...s.btn("#111"), padding: "8px 14px", fontSize: 12 }} onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({ title: page.label, url: page.url }).catch(() => {});
-                      } else {
-                        navigator.clipboard.writeText(page.url);
-                        alert("Link copied to clipboard!");
-                      }
-                    }}>Share Link</button>
+          <button
+            style={{ ...menuStyles.addToggleBtn, borderColor: primary }}
+            onClick={() => setShowAdd(!showAdd)}
+          >
+            <span style={{ ...menuStyles.addToggleText, color: primary }}>
+              {showAdd ? "✕ Cancel" : "+ Add new item"}
+            </span>
+          </button>
+
+          {showAdd && (
+            <div style={menuStyles.addForm}>
+              <label style={styles.label}>Item name *</label>
+              <input style={styles.input} placeholder="e.g. Paneer Tikka" value={newName} onChange={e => setNewName(e.target.value)} />
+              <label style={styles.label}>Price (₹) *</label>
+              <input style={styles.input} type="number" placeholder="e.g. 180" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
+              <label style={styles.label}>Category *</label>
+              <input style={styles.input} placeholder="e.g. Starters" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+              <label style={styles.label}>Unit (e.g. 500g, 1 Plate) (optional)</label>
+              <input style={styles.input} placeholder="e.g. 500g" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
+              <label style={styles.label}>Description (optional)</label>
+              <textarea style={{ ...styles.input, height: 80, resize: "vertical" }} placeholder="Brief description..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
+              <button style={{ ...styles.btn(primary), width: "100%" }} onClick={addItem}>Add item</button>
+            </div>
+          )}
+
+          {categories.map(cat => (
+            <div key={cat}>
+              <div style={menuStyles.catHeader}>{cat}</div>
+              {items.filter(i => i.category === cat).map(item => (
+                <div key={item.id} style={menuStyles.itemCard}>
+                  <div style={{ flex: 1 }}>
+                    <Text style={menuStyles.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</Text>
+                    <Text style={menuStyles.itemMeta}>₹{item.price}{item.description ? ` · ${item.description}` : ''}</Text>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      style={menuStyles.stockBtn(item.in_stock)}
+                      onClick={() => toggleStock(item.id, item.in_stock)}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: '700', color: item.in_stock ? '#16a34a' : '#dc2626' }}>
+                        {item.in_stock ? 'In stock' : 'Out'}
+                      </span>
+                    </button>
+                    <button onClick={() => deleteItem(item.id)} style={menuStyles.deleteBtn}>
+                      <span style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>✕</span>
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── PAYMENTS TAB ───────────────────────────────────────────────────── */}
+      {tab === "payments" && (
+        <div>
+          <Text style={settingStyles.sectionTitle}>Payment Settings</Text>
+          <Text style={settingStyles.pinDesc}>Configure how customers pay for orders placed on EchoTakeout.</Text>
+
+          {/* Compliance Checklist Box */}
+          {onlinePaymentsEnabled && (
+            <div style={{ backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e40af', marginBottom: 6 }}>📋 Onboarding Checklist</Text>
+              <Text style={{ fontSize: 12, color: '#1e3a8a', lineHeight: "17px" }}>
+                1. Copy your public storefront checkout URL:{"\n"}
+                <Text style={{ fontWeight: '700', textDecoration: 'underline' }}>https://www.echotakeout.com/{tenant.slug}</Text>{"\n"}
+                2. Paste this link into the 'Website URL' field when registering your merchant profile on Razorpay.{"\n"}
+                3. Configure your support contact parameters under the Info tab.
+              </Text>
+            </div>
+          )}
+
+          <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+            Allow customers to pay at the register upon collection. Disabling this forces online-only checkouts.
+          </p>
+
+          <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+            Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches checkout directly to cash.
+          </p>
+
+          {onlinePaymentsEnabled && (
+            <div style={{ backgroundColor: "#f9f9f9", borderRadius: 12, padding: 16, marginTop: 16, border: "1px solid #eee" }}>
+              <Text style={{ fontWeight: "700", fontSize: 14, color: "#111", marginBottom: 10 }}>💳 Razorpay Credentials</Text>
+              
+              <label style={styles.label}>Razorpay Key ID</label>
+              <input 
+                style={styles.input} 
+                placeholder="rzp_live_A1B2C3D4" 
+                value={razorpayKeyId} 
+                onChange={e => setRazorpayKeyId(e.target.value)} 
+              />
+
+              <label style={styles.label}>Razorpay Key Secret</label>
+              <input 
+                style={styles.input} 
+                type="password"
+                placeholder="••••••••••••••••" 
+                value={razorpayKeySecret} 
+                onChange={e => setRazorpayKeySecret(e.target.value)} 
+              />
+            </div>
+          )}
+
+          <button style={{ ...styles.btn(primary), marginTop: 20, width: "100%" }} onClick={savePayments} disabled={savingPayments}>
+            {savingPayments ? "Saving..." : "Save payment settings"}
+          </button>
+        </div>
+      )}
+
+      {/* ─── RESTAURANT TAB ─────────────────────────────────────────────────── */}
+      {tab === "restaurant" && (
+        <div>
+          <Text style={settingStyles.sectionTitle}>Branding & Info</Text>
+          
+          <label style={styles.label}>Restaurant Name</label>
+          <input style={styles.input} value={tName} onChange={e => setTName(e.target.value)} />
+
+          <label style={styles.label}>Tagline</label>
+          <input style={styles.input} value={tTagline} onChange={e => setTTagline(e.target.value)} />
+
+          <label style={styles.label}>Brand Primary Colour (Hex Code)</label>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+            <input 
+              style={{ ...styles.input, flex: 1, marginBottom: 0 }} 
+              value={tColor} 
+              onChange={e => setTColor(e.target.value)} 
+              maxLength={7} 
+            />
+            <div style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: tColor || '#ff4d00', borderWidth: 1, borderColor: '#eee' }} />
+          </div>
+
+          <Text style={settingStyles.sectionTitle}>Compliance Settings</Text>
+          <Text style={settingStyles.pinDesc}>Configures contact details for dynamic policies on your menu page.</Text>
+
+          <label style={styles.label}>Support Email</label>
+          <input style={styles.input} placeholder="contact@yourrestaurant.com" value={tEmail} onChange={e => setTEmail(e.target.value)} />
+
+          <label style={styles.label}>Support Phone</label>
+          <input style={styles.input} placeholder="+91 98765 43210" value={tPhone} onChange={e => setTPhone(e.target.value)} />
+
+          <label style={styles.label}>Physical Address</label>
+          <textarea style={{ ...styles.input, height: 80, resize: "vertical" }} placeholder="Restaurant operational address..." value={tAddress} onChange={e => setTAddress(e.target.value)} />
+
+          <button style={{ ...styles.btn(primary), width: "100%", marginTop: 12 }} onClick={saveTenant}>Save changes</button>
+        </div>
+      )}
+
+      {/* ─── SETTINGS TAB ───────────────────────────────────────────────────── */}
+      {tab === "settings" && (
+        <div>
+          <Text style={settingStyles.sectionTitle}>Order Settings</Text>
+          <Toggle label="Enable queue limit" desc="Pause new orders when queue is full" value={queueLimitEnabled} onChange={setQueueLimitEnabled} />
+          {queueLimitEnabled && (
+            <div style={{ paddingBottom: 12 }}>
+              <Text style={styles.label}>Max orders in queue</Text>
+              <input style={[styles.input, { width: 100 }]} type="number" value={queueLimit} onChange={e => setQueueLimit(e.target.value)} />
+            </div>
+          )}
+          <Toggle label="Enable dine-in" desc="Customers can choose dine-in with table number" value={dineInEnabled} onChange={setDineInEnabled} />
+          <Toggle label="Allow order editing" desc="Customers can edit or cancel while status is new" value={editOrderEnabled} onChange={setEditOrderEnabled} />
+          <Toggle label="Allow customization notes" desc="Customers can add special instructions" value={customizeOrderEnabled} onChange={setCustomizeOrderEnabled} />
+          
+          <Toggle label="Enable Delivery" value={deliveryEnabled} onChange={setDeliveryEnabled} />
+          {deliveryEnabled && (
+            <div style={{ backgroundColor: "#f9f9f9", borderRadius: 12, padding: 14, marginTop: 16, border: "1px solid #eee" }}>
+              <p style={{ fontSize: 13, fontWeight: "700", margin: "0 0 12px" }}>Delivery Options Manager</p>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input style={{ ...styles.input, marginBottom: 0, flex: 2 }} placeholder="e.g. Standard Delivery" value={newDelName} onChange={e => setNewDelName(e.target.value)} />
+                <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="number" placeholder="₹ Price" value={newDelPrice} onChange={e => setNewDelPrice(e.target.value)} />
+                <button type="button" style={{ ...styles.btn(primary), padding: "8px 14px", width: "auto" }} onClick={() => {
+                  if(!newDelName.trim() || !newDelPrice.trim()) return alert("Option name and price are required.");
+                  const updated = [...deliveryOptions, { id: Date.now(), name: newDelName.trim(), price: parseFloat(newDelPrice) }];
+                  setDeliveryOptions(updated);
+                  setNewDelName(""); setNewDelPrice("");
+                }}>Add</button>
               </div>
-            );
-          })}
+              {deliveryOptions.map(opt => (
+                <div key={opt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontSize: 14 }}>{opt.name} — <strong>₹{opt.price}</strong></span>
+                  <button type="button" style={{ ...styles.btn("#ef4444"), padding: "4px 8px", fontSize: 11, width: "auto" }} onClick={() => {
+                    setDeliveryOptions(deliveryOptions.filter(o => o.id !== opt.id));
+                  }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button style={{ ...styles.btn(primary), marginTop: 20, width: "100%" }} onClick={saveSettings} disabled={savingSettings}>
+            {savingSettings ? "Saving..." : "Save settings"}
+          </button>
+
+          <div style={settingStyles.pinSection}>
+            <Text style={settingStyles.sectionTitle}>Kitchen PIN</Text>
+            <Text style={settingStyles.pinDesc}>Kitchen staff enter this PIN to access the kitchen display.</Text>
+            <input style={[styles.input, settingStyles.pinInput]} value={kitchenPin} onChange={e => setKitchenPin(e.target.value)} placeholder="e.g. 1234" maxLength={8} />
+            <button style={{ ...styles.btn(primary), width: "100%" }} onClick={saveKitchenPin} disabled={savingPin}>
+              {savingPin ? "Saving..." : "Save PIN"}
+            </button>
+          </div>
+
+          <div style={settingStyles.pinSection}>
+            <Text style={settingStyles.sectionTitle}>🖨️ Printing</Text>
+            <Toggle label="Enable printing" value={printEnabled} onChange={setPrintEnabled} />
+            {printEnabled && (
+              <div>
+                <div style={printerStyles.printerBox}>
+                  <Text style={printerStyles.printerTitle}>🍳 KOT Printer (Kitchen)</Text>
+                  <label style={styles.label}>Printer IPv4 Address</label>
+                  <input style={styles.input} placeholder="e.g. 192.168.1.45" value={kotIP} onChange={e => setKotIP(e.target.value)} />
+                  <Text style={printerStyles.autoLabel}>Auto-print option:</Text>
+                  {["new", "manual"].map(opt => (
+                    <label key={opt} style={printerStyles.radioRow}>
+                      <input type="radio" name="kot_auto" checked={kotAutoprint === opt} onChange={() => setKotAutoprint(opt)} />
+                      <span style={{ marginLeft: 8 }}>{opt === "new" ? "Auto-print on new order" : "Manual print only"}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div style={printerStyles.printerBox}>
+                  <Text style={printerStyles.printerTitle}>🧾 Receipt Printer (Counter)</Text>
+                  <label style={styles.label}>Printer IPv4 Address</label>
+                  <input style={styles.input} placeholder="e.g. 192.168.1.46" value={receiptIP} onChange={e => setReceiptIP(e.target.value)} />
+                  <Text style={printerStyles.autoLabel}>Auto-print option:</Text>
+                  {[
+                    { val: "new", label: "Auto-print on new order" },
+                    { val: "ready", label: "Auto-print when ready" },
+                    { val: "done", label: "Auto-print when done" },
+                    { val: "manual", label: "Manual print only" },
+                  ].map(opt => (
+                    <label key={opt.val} style={printerStyles.radioRow}>
+                      <input type="radio" name="rec_auto" checked={receiptAutoprint === opt.val} onChange={() => setReceiptAutoprint(opt.val)} />
+                      <span style={{ marginLeft: 8 }}>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <button style={{ ...styles.btn(primary), marginTop: 16, width: "100%" }} onClick={savePrinterSettingsWeb} disabled={savingPrinter}>
+                  {savingPrinter ? "Saving..." : "Save printer settings"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── QR TAB ─────────────────────────────────────────────────────────── */}
+      {tab === "qr" && (
+        <div style={{ padding: "0 4px" }}>
+          {qrPages.map(page => (
+            <div key={page.label} style={qrStyles.card}>
+              <div style={{ flex: 1 }}>
+                <Text style={qrStyles.label}>{page.icon} {page.label}</Text>
+                <Text style={qrStyles.desc}>{page.desc}</Text>
+                <Text style={qrStyles.url}>{page.url}</Text>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button style={{ ...styles.btn("#f3f4f6"), color: "#111", padding: "8px 14px", fontSize: 12, border: "1px solid #ddd" }} onClick={() => window.open(page.url, "_blank")}>Open →</button>
+                  <button style={{ ...styles.btn(primary), padding: "8px 14px", fontSize: 12 }} onClick={() => downloadQR(page.url, page.label)}>Download QR</button>
+                  <button style={{ ...styles.btn("#111"), padding: "8px 14px", fontSize: 12 }} onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({ title: page.label, url: page.url }).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(page.url);
+                      alert("Link copied!");
+                    }
+                  }}>Share Link</button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
