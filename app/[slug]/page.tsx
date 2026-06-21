@@ -53,8 +53,9 @@ export default function RestaurantPage() {
   useEffect(() => {
     async function loadData() {
       // SECURITY: Explicitly query only public columns.
+      // REPLACE your .select(...) block with this version (around line 50):
       const { data: tenantData } = await supabase.from("tenants")
-        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options, notes_placeholder")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options")
         .eq("slug", slug)
         .single();
 
@@ -564,10 +565,11 @@ export default function RestaurantPage() {
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
+      {/* REPLACE your customize order notes textarea with this version: */}
       {tenant.customize_order_enabled && (
         <textarea
           style={{ ...s.input, resize: "vertical", minHeight: 80, fontSize: 14 }}
-          placeholder={tenant.notes_placeholder || "Special instructions (e.g. no onions, extra spicy, allergies...)"}
+          placeholder="Special instructions or preparation requests (e.g. custom cuts, packaging preferences, no onions, extra spicy...)"
           value={notes}
           onChange={e => setNotes(e.target.value)}
         />
