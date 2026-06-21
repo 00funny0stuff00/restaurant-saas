@@ -356,7 +356,7 @@ export default function AdminPage() {
   ];
 
   const activeOrdersForMetrics = filterDate
-    ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
+    ? orders.filter(o => o.created_at && o.created_at.startsWith(filterDate))
     : orders;
   const cancelledCount = activeOrdersForMetrics.filter(o => o.status === "cancelled").length;
   const netRevenue = activeOrdersForMetrics.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
@@ -484,6 +484,7 @@ export default function AdminPage() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
+        {/* FIXED: Removed React Native <View> wrapper completely */}
         <div style={{ flex: 1 }}>
           <h1 style={styles.headerTitle}>⚙️ {tenant?.name}</h1>
         </div>
@@ -626,7 +627,7 @@ export default function AdminPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button
-                      style={menuStyles.stockBtn(item.in_stock)}
+                      style={{ ...menuStyles.stockBtn(item.in_stock), border: "none" }}
                       onClick={() => toggleStock(item.id, item.in_stock)}
                     >
                       <span style={{ fontSize: 12, fontWeight: '700', color: item.in_stock ? '#16a34a' : '#dc2626' }}>
