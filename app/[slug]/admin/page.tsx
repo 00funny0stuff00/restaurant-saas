@@ -357,14 +357,18 @@ export default function AdminPage() {
   const subWarning = getSubWarning();
 
   // Paste this INSIDE your AdminPage component (just above const s = { ... }):
-  const Toggle = ({ value, onChange, label }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
-      <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
-      <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? primary : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-        <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+  // Replace your Toggle component with this self-contained version:
+  const Toggle = ({ value, onChange, label }) => {
+    const activeColor = tenant?.primary_color ?? "#ff4d00";
+    return (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
+        <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? activeColor : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+          <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const s = {
     page: { fontFamily: "sans-serif", maxWidth: 580, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
