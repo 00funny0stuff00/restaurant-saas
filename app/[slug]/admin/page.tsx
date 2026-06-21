@@ -85,7 +85,7 @@ export default function AdminPage() {
     window.location.href = "/login";
   }
 
-  // Self-contained Toggle Component
+  // Self-contained Toggle Component (Pure HTML/Web Layout)
   const Toggle = ({ value, onChange, label }) => {
     const activeColor = tenant?.primary_color ?? "#ff4d00";
     return (
@@ -383,11 +383,11 @@ export default function AdminPage() {
   };
   const subWarning = getSubWarning();
 
-  // ─── 6. STYLING SHEETS (Fully Restored) ────────────────────────────────────
+  // ─── 6. STYLING SHEETS (Pure HTML Web Styling) ────────────────────────────
   const styles = {
     page: { fontFamily: "sans-serif", maxWidth: 580, margin: "0 auto", padding: 20, background: "white", minHeight: "100vh", color: "#111" },
     header: { padding: "16px 0 14px", borderBottom: `2px solid ${primary}`, background: "white", display: "flex", justifyContent: "space-between", alignItems: "flex-end" },
-    headerTitle: { fontSize: 18, fontWeight: "800", color: "#111", marginTop: 2 },
+    headerTitle: { fontSize: 18, fontWeight: "800", color: "#111", margin: 0 },
     logoutBtn: { padding: "8px 14px", backgroundColor: "#f3f4f6", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: "700", color: "#888" },
     tabBar: { display: "flex", borderBottom: "1px solid #eee", margin: "20px 0 24px", overflowX: "auto" },
     tabBtn: (active) => ({ padding: "10px 14px", border: "none", borderBottom: active ? `3px solid ${primary}` : "3px solid transparent", background: "none", cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? primary : "#555", fontSize: 13, whiteSpace: "nowrap" }),
@@ -396,11 +396,11 @@ export default function AdminPage() {
     card: { backgroundColor: "white", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" },
     badge: (bg) => ({ padding: "4px 10px", borderRadius: 20, backgroundColor: bg, display: "inline-block" }),
     badgeText: { color: "white", fontSize: 11, fontWeight: "700" },
-    name: { fontWeight: "700", fontSize: 15, color: "#111", marginBottom: 2 },
-    meta: { fontSize: 13, color: "#888", marginBottom: 2 },
+    name: { fontWeight: "700", fontSize: 15, color: "#111", marginBottom: 2, margin: 0 },
+    meta: { fontSize: 13, color: "#888", marginBottom: 2, margin: 0 },
     items: { fontSize: 14, color: "#333", margin: "6px 0" },
     notesBox: { backgroundColor: "#ede9fe", borderRadius: 8, padding: 8, margin: "6px 0" },
-    notesLabel: { fontSize: 13, color: "#5b21b6", fontWeight: "600" },
+    notesLabel: { fontSize: 13, color: "#5b21b6", fontWeight: "600", margin: 0 },
     total: { fontWeight: "700", fontSize: 15 },
     label: { fontSize: 13, fontWeight: "600", color: "#333", marginBottom: 6, marginTop: 4, display: "block" },
     input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 15, marginBottom: 14, color: "#111", backgroundColor: "white", boxSizing: "border-box" },
@@ -424,20 +424,20 @@ export default function AdminPage() {
     addForm: { backgroundColor: "#f9f9f9", borderRadius: 12, padding: 16, marginBottom: 20, border: "1px solid #eee" },
     catHeader: { fontSize: 13, fontWeight: "700", color: "#888", marginBottom: 8, marginTop: 16, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #f0f0f0", paddingBottom: 4 },
     itemCard: { backgroundColor: "white", borderRadius: 10, padding: 14, marginBottom: 10, border: "1px solid #eee", display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" },
-    itemName: { fontWeight: "700", fontSize: 14, color: "#111" },
-    itemMeta: { fontSize: 12, color: "#888", marginTop: 2 },
+    itemName: { fontWeight: "700", fontSize: 14, color: "#111", margin: 0 },
+    itemMeta: { fontSize: 12, color: "#888", marginTop: 2, margin: 0 },
     stockBtn: (active) => ({ padding: "6px 10px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: active ? "#dcfce7" : "#fee2e2" }),
     deleteBtn: { backgroundColor: "#ef4444", width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }
   };
 
   const printerStyles = {
     printerBox: { backgroundColor: "#f9f9f9", borderRadius: 12, padding: 14, marginTop: 16, border: "1px solid #eee" },
-    printerTitle: { fontWeight: "700", fontSize: 14, color: "#111", marginBottom: 10 },
+    printerTitle: { fontWeight: "700", fontSize: 14, color: "#111", marginBottom: 10, margin: 0 },
     selectedPrinter: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
     selectedIP: { fontSize: 13, color: "#333", flex: 1 },
     changeBtn: { fontSize: 13, fontWeight: "700", background: "none", border: "none", cursor: "pointer" },
-    scanBtn: { borderWidth: 2, borderRadius: 10, padding: 12, alignItems: "center", marginBottom: 10, borderStyle: "dashed", cursor: "pointer", background: "transparent" },
-    scanBtnText: { fontWeight: "700", fontSize: 14 },
+    scanBtn: { borderWidth: 2, borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 10, borderStyle: 'dashed', cursor: 'pointer', background: 'transparent' },
+    scanBtnText: { fontWeight: '700', fontSize: 14 },
     autoLabel: { fontSize: 12, fontWeight: "700", color: "#888", marginTop: 8, marginBottom: 6, textTransform: "uppercase" },
     radioRow: { display: "flex", alignItems: "center", padding: "6px 0", cursor: "pointer" },
     radio: (active) => ({ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: active ? primary : "#ddd", marginRight: 10, backgroundColor: active ? primary : "white" }),
@@ -454,9 +454,9 @@ export default function AdminPage() {
   const qrStyles = {
     card: { display: "flex", gap: 16, alignItems: "flex-start", backgroundColor: "white", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" },
     qrImage: { width: 90, height: 90, borderRadius: 8, flexShrink: 0 },
-    label: { fontWeight: "700", fontSize: 15, color: "#111", marginBottom: 4 },
-    desc: { fontSize: 12, color: "#888", marginBottom: 4 },
-    url: { fontSize: 10, color: "#bbb", marginBottom: 8, wordBreak: "break-all" },
+    label: { fontWeight: "700", fontSize: 15, color: "#111", marginBottom: 4, margin: 0 },
+    desc: { fontSize: 12, color: "#888", marginBottom: 4, margin: 0 },
+    url: { fontSize: 10, color: "#bbb", marginBottom: 8, wordBreak: "break-all", margin: 0 },
     downloadBtn: { borderRadius: 8, padding: 8, border: "none", cursor: "pointer", display: "inline-block", textAlign: "center" },
     downloadText: { color: "white", fontWeight: "700", fontSize: 12 },
   };
@@ -471,7 +471,7 @@ export default function AdminPage() {
     pinInput: { textAlign: "center", fontSize: 22, letterSpacing: 6, width: 160 },
   };
 
-  if (loading) return <div style={styles.center}><ActivityIndicator color={primary} /></div>;
+  if (loading) return <div style={styles.center}><p style={{ color: "#888", fontWeight: "600" }}>Loading...</p></div>;
 
   if (authError) return (
     <div style={{ ...styles.page, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", textAlign: "center" }}>
@@ -484,13 +484,13 @@ export default function AdminPage() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>⚙️ {tenant?.name}</Text>
-        </View>
+        <div style={{ flex: 1 }}>
+          <h1 style={styles.headerTitle}>⚙️ {tenant?.name}</h1>
+        </div>
         <button style={styles.logoutBtn} onClick={handleLogout}>Log out</button>
       </div>
 
-      {/* Tab bar navigation matching native app horizontal scroll layout */}
+      {/* Tab bar navigation */}
       <div style={styles.tabBar}>
         {["orders", "menu", "payments", "settings", "restaurant", "qr"].map(t => (
           <button key={t} style={styles.tabBtn(tab === t)} onClick={() => setTab(t)}>
@@ -504,16 +504,16 @@ export default function AdminPage() {
         <div>
           <div style={orderStyles.summary}>
             <div style={orderStyles.summaryItem}>
-              <Text style={orderStyles.summaryVal}>{orders.length}</Text>
-              <Text style={orderStyles.summaryLabel}>Total orders</Text>
+              <p style={orderStyles.summaryVal}>{orders.length}</p>
+              <p style={orderStyles.summaryLabel}>Total orders</p>
             </div>
             <div style={orderStyles.summaryItem}>
-              <Text style={[orderStyles.summaryVal, { color: primary }]}>₹{netRevenue.toFixed(0)}</Text>
-              <Text style={orderStyles.summaryLabel}>Revenue</Text>
+              <p style={{ ...orderStyles.summaryVal, color: primary }}>₹{netRevenue.toFixed(0)}</p>
+              <p style={orderStyles.summaryLabel}>Revenue</p>
             </div>
             <div style={orderStyles.summaryItem}>
-              <Text style={[orderStyles.summaryVal, { color: '#ef4444' }]}>{cancelledCount}</Text>
-              <Text style={orderStyles.summaryLabel}>Cancelled</Text>
+              <p style={{ ...orderStyles.summaryVal, color: '#ef4444' }}>{cancelledCount}</p>
+              <p style={orderStyles.summaryLabel}>Cancelled</p>
             </div>
           </div>
 
@@ -540,30 +540,30 @@ export default function AdminPage() {
           </div>
 
           {filteredOrders.length === 0 ? (
-            <div style={styles.empty}><Text style={{ color: '#888' }}>No orders found.</Text></div>
+            <div style={styles.empty}><p style={{ color: '#888' }}>No orders found.</p></div>
           ) : (
             filteredOrders.map(order => (
               <div key={order.id} style={styles.card}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <div style={styles.badge(statusColor[order.status] || '#888')}>
-                    <Text style={styles.badgeText}>{order.status?.toUpperCase()}</Text>
+                    <span style={styles.badgeText}>{order.status?.toUpperCase()}</span>
                   </div>
-                  <Text style={{ color: '#888', fontSize: 13 }}>#{order.id}</Text>
+                  <span style={{ color: '#888', fontSize: 13 }}>#{order.id}</span>
                 </div>
-                <Text style={styles.name}>{order.customer_name}</Text>
-                <Text style={styles.meta}>{order.phone}</Text>
-                <Text style={styles.meta}>
+                <p style={styles.name}>{order.customer_name}</p>
+                <p style={styles.meta}>{order.phone}</p>
+                <p style={styles.meta}>
                   {order.order_type === 'dine-in' ? `🪑 Dine-in · Table ${order.table_number}` : '🥡 Takeaway'}
-                </Text>
-                <Text style={styles.items}>{order.items}</Text>
+                </p>
+                <p style={styles.items}>{order.items}</p>
                 {order.notes && (
                   <div style={styles.notesBox}>
-                    <Text style={styles.notesLabel}>📝 {order.notes}</Text>
+                    <p style={styles.notesLabel}>📝 {order.notes}</p>
                   </div>
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                  <Text style={[styles.total, { color: primary }]}>₹{order.total}</Text>
-                  <Text style={{ fontSize: 11, color: '#aaa' }}>{new Date(order.created_at).toLocaleString('en-IN')}</Text>
+                  <span style={{ ...styles.total, color: primary }}>₹{order.total}</span>
+                  <span style={{ fontSize: 11, color: '#aaa' }}>{new Date(order.created_at).toLocaleString('en-IN')}</span>
                 </div>
                 {order.status !== 'done' && order.status !== 'cancelled' && (
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -621,8 +621,8 @@ export default function AdminPage() {
               {items.filter(i => i.category === cat).map(item => (
                 <div key={item.id} style={menuStyles.itemCard}>
                   <div style={{ flex: 1 }}>
-                    <Text style={menuStyles.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</Text>
-                    <Text style={menuStyles.itemMeta}>₹{item.price}{item.description ? ` · ${item.description}` : ''}</Text>
+                    <p style={menuStyles.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</p>
+                    <p style={menuStyles.itemMeta}>₹{item.price}{item.description ? ` · ${item.description}` : ''}</p>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button
@@ -647,19 +647,19 @@ export default function AdminPage() {
       {/* ─── PAYMENTS TAB ───────────────────────────────────────────────────── */}
       {tab === "payments" && (
         <div>
-          <Text style={settingStyles.sectionTitle}>Payment Settings</Text>
-          <Text style={settingStyles.pinDesc}>Configure how customers pay for orders placed on EchoTakeout.</Text>
+          <h3 style={settingStyles.sectionTitle}>Payment Settings</h3>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
 
-          {/* Compliance Checklist Box */}
+          {/* Onboarding Checklist for Razorpay Compliance */}
           {onlinePaymentsEnabled && (
             <div style={{ backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e40af', marginBottom: 6 }}>📋 Onboarding Checklist</Text>
-              <Text style={{ fontSize: 12, color: '#1e3a8a', lineHeight: "17px" }}>
+              <p style={{ fontSize: 14, fontWeight: '700', color: '#1e40af', marginBottom: 6, margin: 0 }}>📋 Onboarding Checklist</p>
+              <p style={{ fontSize: 12, color: '#1e3a8a', lineHeight: "17px", margin: 0 }}>
                 1. Copy your public storefront checkout URL:{"\n"}
-                <Text style={{ fontWeight: '700', textDecoration: 'underline' }}>https://www.echotakeout.com/{tenant.slug}</Text>{"\n"}
+                <span style={{ fontWeight: '700', textDecoration: 'underline' }}>https://www.echotakeout.com/{slug}</span>{"\n"}
                 2. Paste this link into the 'Website URL' field when registering your merchant profile on Razorpay.{"\n"}
                 3. Configure your support contact parameters under the Info tab.
-              </Text>
+              </p>
             </div>
           )}
 
@@ -675,7 +675,7 @@ export default function AdminPage() {
 
           {onlinePaymentsEnabled && (
             <div style={{ backgroundColor: "#f9f9f9", borderRadius: 12, padding: 16, marginTop: 16, border: "1px solid #eee" }}>
-              <Text style={{ fontWeight: "700", fontSize: 14, color: "#111", marginBottom: 10 }}>💳 Razorpay Credentials</Text>
+              <p style={{ fontWeight: "700", fontSize: 14, color: "#111", marginBottom: 10, margin: 0 }}>💳 Razorpay Credentials</p>
               
               <label style={styles.label}>Razorpay Key ID</label>
               <input 
@@ -705,7 +705,7 @@ export default function AdminPage() {
       {/* ─── RESTAURANT TAB ─────────────────────────────────────────────────── */}
       {tab === "restaurant" && (
         <div>
-          <Text style={settingStyles.sectionTitle}>Branding & Info</Text>
+          <h3 style={settingStyles.sectionTitle}>Branding & Info</h3>
           
           <label style={styles.label}>Restaurant Name</label>
           <input style={styles.input} value={tName} onChange={e => setTName(e.target.value)} />
@@ -724,8 +724,8 @@ export default function AdminPage() {
             <div style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: tColor || '#ff4d00', borderWidth: 1, borderColor: '#eee' }} />
           </div>
 
-          <Text style={settingStyles.sectionTitle}>Compliance Settings</Text>
-          <Text style={settingStyles.pinDesc}>Configures contact details for dynamic policies on your menu page.</Text>
+          <h3 style={settingStyles.sectionTitle}>Compliance Settings</h3>
+          <p style={settingStyles.pinDesc}>Configures contact details for dynamic policies on your menu page.</p>
 
           <label style={styles.label}>Support Email</label>
           <input style={styles.input} placeholder="contact@yourrestaurant.com" value={tEmail} onChange={e => setTEmail(e.target.value)} />
@@ -743,12 +743,12 @@ export default function AdminPage() {
       {/* ─── SETTINGS TAB ───────────────────────────────────────────────────── */}
       {tab === "settings" && (
         <div>
-          <Text style={settingStyles.sectionTitle}>Order Settings</Text>
+          <h3 style={settingStyles.sectionTitle}>Order Settings</h3>
           <Toggle label="Enable queue limit" desc="Pause new orders when queue is full" value={queueLimitEnabled} onChange={setQueueLimitEnabled} />
           {queueLimitEnabled && (
             <div style={{ paddingBottom: 12 }}>
-              <Text style={styles.label}>Max orders in queue</Text>
-              <input style={[styles.input, { width: 100 }]} type="number" value={queueLimit} onChange={e => setQueueLimit(e.target.value)} />
+              <p style={styles.label}>Max orders in queue</p>
+              <input style={{ ...styles.input, width: 100 }} type="number" value={queueLimit} onChange={e => setQueueLimit(e.target.value)} />
             </div>
           )}
           <Toggle label="Enable dine-in" desc="Customers can choose dine-in with table number" value={dineInEnabled} onChange={setDineInEnabled} />
@@ -785,37 +785,38 @@ export default function AdminPage() {
           </button>
 
           <div style={settingStyles.pinSection}>
-            <Text style={settingStyles.sectionTitle}>Kitchen PIN</Text>
-            <Text style={settingStyles.pinDesc}>Kitchen staff enter this PIN to access the kitchen display.</Text>
-            <input style={[styles.input, settingStyles.pinInput]} value={kitchenPin} onChange={e => setKitchenPin(e.target.value)} placeholder="e.g. 1234" maxLength={8} />
+            <h3 style={settingStyles.sectionTitle}>Kitchen PIN</h3>
+            <p style={settingStyles.pinDesc}>Kitchen staff enter this PIN to access the kitchen display.</p>
+            <input style={{ ...styles.input, ...settingStyles.pinInput }} value={kitchenPin} onChange={e => setKitchenPin(e.target.value)} placeholder="e.g. 1234" maxLength={8} />
             <button style={{ ...styles.btn(primary), width: "100%" }} onClick={saveKitchenPin} disabled={savingPin}>
               {savingPin ? "Saving..." : "Save PIN"}
             </button>
           </div>
 
           <div style={settingStyles.pinSection}>
-            <Text style={settingStyles.sectionTitle}>🖨️ Printing</Text>
+            <h3 style={settingStyles.sectionTitle}>🖨️ Printing Configuration</h3>
+            <p style={settingStyles.pinDesc}>Sync printing rules with local WiFi thermal printers.</p>
             <Toggle label="Enable printing" value={printEnabled} onChange={setPrintEnabled} />
             {printEnabled && (
               <div>
                 <div style={printerStyles.printerBox}>
-                  <Text style={printerStyles.printerTitle}>🍳 KOT Printer (Kitchen)</Text>
+                  <p style={printerStyles.printerTitle}>🍳 KOT Printer (Kitchen)</p>
                   <label style={styles.label}>Printer IPv4 Address</label>
                   <input style={styles.input} placeholder="e.g. 192.168.1.45" value={kotIP} onChange={e => setKotIP(e.target.value)} />
-                  <Text style={printerStyles.autoLabel}>Auto-print option:</Text>
+                  <p style={printerStyles.autoLabel}>Auto-print option:</p>
                   {["new", "manual"].map(opt => (
                     <label key={opt} style={printerStyles.radioRow}>
                       <input type="radio" name="kot_auto" checked={kotAutoprint === opt} onChange={() => setKotAutoprint(opt)} />
-                      <span style={{ marginLeft: 8 }}>{opt === "new" ? "Auto-print on new order" : "Manual print only"}</span>
+                      <span style={{ marginLeft: 8, fontSize: 14 }}>{opt === "new" ? "Auto-print on new order" : "Manual print only"}</span>
                     </label>
                   ))}
                 </div>
 
                 <div style={printerStyles.printerBox}>
-                  <Text style={printerStyles.printerTitle}>🧾 Receipt Printer (Counter)</Text>
+                  <p style={printerStyles.printerTitle}>🧾 Receipt Printer (Counter)</p>
                   <label style={styles.label}>Printer IPv4 Address</label>
                   <input style={styles.input} placeholder="e.g. 192.168.1.46" value={receiptIP} onChange={e => setReceiptIP(e.target.value)} />
-                  <Text style={printerStyles.autoLabel}>Auto-print option:</Text>
+                  <p style={printerStyles.autoLabel}>Auto-print option:</p>
                   {[
                     { val: "new", label: "Auto-print on new order" },
                     { val: "ready", label: "Auto-print when ready" },
@@ -824,7 +825,7 @@ export default function AdminPage() {
                   ].map(opt => (
                     <label key={opt.val} style={printerStyles.radioRow}>
                       <input type="radio" name="rec_auto" checked={receiptAutoprint === opt.val} onChange={() => setReceiptAutoprint(opt.val)} />
-                      <span style={{ marginLeft: 8 }}>{opt.label}</span>
+                      <span style={{ marginLeft: 8, fontSize: 14 }}>{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -844,9 +845,9 @@ export default function AdminPage() {
           {qrPages.map(page => (
             <div key={page.label} style={qrStyles.card}>
               <div style={{ flex: 1 }}>
-                <Text style={qrStyles.label}>{page.icon} {page.label}</Text>
-                <Text style={qrStyles.desc}>{page.desc}</Text>
-                <Text style={qrStyles.url}>{page.url}</Text>
+                <p style={qrStyles.label}>{page.icon} {page.label}</p>
+                <p style={qrStyles.desc}>{page.desc}</p>
+                <p style={qrStyles.url}>{page.url}</p>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <button style={{ ...styles.btn("#f3f4f6"), color: "#111", padding: "8px 14px", fontSize: 12, border: "1px solid #ddd" }} onClick={() => window.open(page.url, "_blank")}>Open →</button>
                   <button style={{ ...styles.btn(primary), padding: "8px 14px", fontSize: 12 }} onClick={() => downloadQR(page.url, page.label)}>Download QR</button>
