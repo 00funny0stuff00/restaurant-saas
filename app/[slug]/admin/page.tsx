@@ -24,7 +24,8 @@ export default function AdminPage() {
   const [filterDate, setFilterDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [authError, setAuthError] = useState(null);
-
+  // Paste this line directly below your authError state declaration:
+  const [showAdd, setShowAdd] = useState(false);
   // Restaurant details & brand metrics
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
