@@ -64,6 +64,22 @@ export default function AdminPage() {
   const [receiptIP, setReceiptIP] = useState("");
   const [receiptAutoprint, setReceiptAutoprint] = useState("done");
   const [savingPrinter, setSavingPrinter] = useState(false);
+  // Delivery States
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [deliveryOptions, setDeliveryOptions] = useState([]);
+  const [newDelName, setNewDelName] = useState("");
+  const [newDelPrice, setNewDelPrice] = useState("");
+
+  // Menu Unit State
+  const [newUnit, setNewUnit] = useState("");
+  // Delivery States
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [deliveryOptions, setDeliveryOptions] = useState([]);
+  const [newDelName, setNewDelName] = useState("");
+  const [newDelPrice, setNewDelPrice] = useState("");
+
+  // Menu Unit State
+  const [newUnit, setNewUnit] = useState("");
 
   useEffect(() => {
     async function init() {
@@ -102,7 +118,8 @@ export default function AdminPage() {
       setEditOrderEnabled(t?.edit_order_enabled ?? false);
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       setKitchenPin(t?.kitchen_pin ?? "");
-
+      setDeliveryEnabled(t?.delivery_enabled ?? false);
+      setDeliveryOptions(t?.delivery_options ?? []);
       // Load payment configuration
       setOnlinePaymentsEnabled(t?.online_payments_enabled ?? false);
       setCashPaymentsEnabled(t?.cash_payments_enabled ?? true); // Added
@@ -166,6 +183,8 @@ export default function AdminPage() {
       dine_in_enabled: dineInEnabled,
       edit_order_enabled: editOrderEnabled,
       customize_order_enabled: customizeOrderEnabled,
+      delivery_enabled: deliveryEnabled, // Saved
+      delivery_options: deliveryOptions, // Saved
     }).eq("slug", slug);
     setSavingSettings(false);
     if (error) return alert("Error saving settings.");
@@ -228,10 +247,16 @@ export default function AdminPage() {
   async function addItem() {
     if (!newName || !newPrice || !newCategory) return alert("Name, price and category are required.");
     await supabase.from("menu_items").insert([{
-      name: newName, price: parseFloat(newPrice), category: newCategory,
-      photo_url: newPhoto, description: newDesc, in_stock: true, tenant_slug: slug
+      name: newName, 
+      price: parseFloat(newPrice), 
+      category: newCategory,
+      unit: newUnit.trim() || null, // Saved
+      photo_url: newPhoto, 
+      description: newDesc, 
+      in_stock: true, 
+      tenant_slug: slug
     }]);
-    setNewName(""); setNewPrice(""); setNewCategory(""); setNewPhoto(""); setNewDesc("");
+    setNewName(""); setNewPrice(""); setNewCategory(""); setNewPhoto(""); setNewDesc(""); setNewUnit("");
     loadMenu();
   }
 
@@ -512,7 +537,35 @@ export default function AdminPage() {
           <button style={{ ...s.btn(primary), marginBottom: 32 }} onClick={saveSettings} disabled={savingSettings}>
             {savingSettings ? "Saving..." : "Save settings"}
           </button>
+          {/* Delivery Configuration */}
+          <Toggle label="Enable Delivery" value={deliveryEnabled} onChange={setDeliveryEnabled} />
+          {deliveryEnabled && (
+            <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginTop: 10, marginBottom: 20 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>Delivery Options Manager</p>
+              
+              {/* Option adder form */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input style={{ ...s.input, marginBottom: 0, flex: 2 }} placeholder="e.g. Standard Delivery" value={newDelName} onChange={e => setNewDelName(e.target.value)} />
+                <input style={{ ...s.input, marginBottom: 0, flex: 1 }} type="number" placeholder="₹ Price" value={newDelPrice} onChange={e => setNewDelPrice(e.target.value)} />
+                <button type="button" style={{ ...s.btn(primary), padding: "8px 14px" }} onClick={() => {
+                  if(!newDelName.trim() || !newDelPrice.trim()) return alert("Option name and price are required.");
+                  const updated = [...deliveryOptions, { id: Date.now(), name: newDelName.trim(), price: parseFloat(newDelPrice) }];
+                  setDeliveryOptions(updated);
+                  setNewDelName(""); setNewDelPrice("");
+                }}>Add</button>
+              </div>
 
+              {/* Active Options list */}
+              {deliveryOptions.map(opt => (
+                <div key={opt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontSize: 14 }}>{opt.name} — <strong>₹{opt.price}</strong></span>
+                  <button type="button" style={{ ...s.btn("#ef4444"), padding: "4px 8px", fontSize: 11 }} onClick={() => {
+                    setDeliveryOptions(deliveryOptions.filter(o => o.id !== opt.id));
+                  }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
           {/* Kitchen PIN */}
           <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
             <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>Kitchen PIN</h3>
@@ -590,6 +643,7 @@ export default function AdminPage() {
           <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Add new item</h3>
           <input style={s.input} placeholder="Item name" value={newName} onChange={e => setNewName(e.target.value)} />
           <input style={s.input} placeholder="Price (e.g. 120)" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
+          <input style={s.input} placeholder="Pricing Unit (e.g. 500g, 1 Plate, Per piece)" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
           <input style={s.input} placeholder="Category (e.g. Starters)" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
           <textarea style={{ ...s.input, resize: "vertical", minHeight: 70 }} placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)} />
           <input style={s.input} placeholder="Photo URL (optional)" value={newPhoto} onChange={e => setNewPhoto(e.target.value)} />
@@ -602,7 +656,9 @@ export default function AdminPage() {
               {items.filter(i => i.category === cat).map(item => (
                 <div key={item.id} style={s.card}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{item.name}</p>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>
+                      {item.name} {item.unit ? `(${item.unit})` : ""}
+                    </p>
                     <p style={{ margin: "2px 0 0", fontSize: 12, color: "#888" }}>₹{item.price}</p>
                     {item.description && <p style={{ margin: "2px 0 0", fontSize: 11, color: "#aaa" }}>{item.description}</p>}
                   </div>
@@ -736,6 +792,15 @@ export default function AdminPage() {
                   <div style={{ display: "flex", gap: 8 }}>
                     <a href={page.url} target="_blank" style={{ ...s.btn("#f3f4f6"), color: "#111", textDecoration: "none", padding: "8px 14px", fontSize: 12 }}>Open →</a>
                     <button style={{ ...s.btn(primary), padding: "8px 14px", fontSize: 12 }} onClick={() => downloadQR(page.url, page.label)}>Download QR</button>
+                    {/* Share action */}
+                    <button style={{ ...s.btn("#111"), padding: "8px 14px", fontSize: 12 }} onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ title: page.label, url: page.url }).catch(() => {});
+                      } else {
+                        navigator.clipboard.writeText(page.url);
+                        alert("Link copied to clipboard!");
+                      }
+                    }}>Share Link</button>
                   </div>
                 </div>
               </div>

@@ -27,6 +27,8 @@ const loadRazorpayScript = () => {
 };
 
 export default function RestaurantPage() {
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [selectedDeliveryOption, setSelectedDeliveryOption] = useState(null);
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
   const [cart, setCart] = useState([]);
   const [screen, setScreen] = useState("menu");
@@ -51,7 +53,7 @@ export default function RestaurantPage() {
 async function loadData() {
   // SECURITY: Explicitly query only public columns.
       const { data: tenantData, error: tenantError } = await supabase.from("tenants")
-        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options")
         .eq("slug", slug)
         .single();
 
@@ -84,6 +86,10 @@ async function loadData() {
       .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
     if (activeOrders && activeOrders.length >= tenantData.queue_limit) setQueueFull(true);
   }
+  
+  if (tenantData.delivery_enabled && tenantData.delivery_options?.length > 0) {
+        setSelectedDeliveryOption(tenantData.delivery_options[0]);
+      }
 
   const { data: menuData } = await supabase.from("menu_items").select("*")
     .eq("tenant_slug", slug).eq("in_stock", true);
@@ -128,7 +134,8 @@ async function loadData() {
     });
   };
 
-  const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const deliveryCharge = (orderType === "delivery" && selectedDeliveryOption) ? selectedDeliveryOption.price : 0;
+  const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0) + deliveryCharge;
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
   const placeOrder = async () => {
@@ -160,13 +167,18 @@ async function loadData() {
     const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
     
     const initialStatus = paymentMethod === "online" ? "pending_payment" : "new";
+    const orderAddress = orderType === "delivery" ? `Delivery to: ${deliveryAddress}` : null;
 
     const { data, error } = await supabase.from("orders").insert([{
-      customer_name: name, phone, items: itemsSummary, total,
-      status: initialStatus, tenant_slug: slug,
+      customer_name: name, 
+      phone, 
+      items: itemsSummary, 
+      total,
+      status: initialStatus, 
+      tenant_slug: slug,
       order_type: orderType,
       table_number: orderType === "dine-in" ? tableNumber : null,
-      notes: notes || null,
+      notes: notes ? `${notes} (Method: ${orderType} ${orderAddress ? `- ${orderAddress}` : ""})` : orderAddress,
     }]).select().single();
 
     if (error) { 
@@ -430,18 +442,45 @@ async function loadData() {
         </div>
       </div>
 
-      {tenant.dine_in_enabled && (
-        <div style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Order type</p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button style={s.typeBtn(orderType === "takeaway")} onClick={() => setOrderType("takeaway")}>🥡 Takeaway</button>
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Order type</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {tenant.dine_in_enabled && (
             <button style={s.typeBtn(orderType === "dine-in")} onClick={() => setOrderType("dine-in")}>🪑 Dine-in</button>
-          </div>
+          )}
+          <button style={s.typeBtn(orderType === "takeaway")} onClick={() => setOrderType("takeaway")}>🥡 Takeaway</button>
+          {tenant.delivery_enabled && (
+            <button style={s.typeBtn(orderType === "delivery")} onClick={() => setOrderType("delivery")}>🚚 Delivery</button>
+          )}
         </div>
-      )}
+      </div>
 
       {orderType === "dine-in" && (
         <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
+      )}
+
+      {orderType === "delivery" && (
+        <div>
+          {/* Delivery Option Selector */}
+          {tenant.delivery_options?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Select Delivery Service</p>
+              <select 
+                style={{ ...s.input, marginBottom: 0 }} 
+                value={selectedDeliveryOption ? selectedDeliveryOption.id : ""} 
+                onChange={e => {
+                  const opt = tenant.delivery_options.find(o => String(o.id) === e.target.value);
+                  if (opt) setSelectedDeliveryOption(opt);
+                }}
+              >
+                {tenant.delivery_options.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.name} (+₹{opt.price})</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <textarea style={{ ...s.input, minHeight: 60 }} placeholder="Complete Delivery Address" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} />
+        </div>
       )}
 
       {/* Conditional Payment Selection Toggle */}
