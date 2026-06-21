@@ -24,8 +24,8 @@ export default function AdminPage() {
   const [filterDate, setFilterDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [authError, setAuthError] = useState(null);
-  // Paste this line directly below your authError state declaration:
   const [showAdd, setShowAdd] = useState(false);
+
   // Restaurant details & brand metrics
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
@@ -71,35 +71,13 @@ export default function AdminPage() {
   const [newDelName, setNewDelName] = useState("");
   const [newDelPrice, setNewDelPrice] = useState("");
 
-  // Menu Unit State
+  // Menu Unit & Weight States
   const [newUnit, setNewUnit] = useState("");
+  const [byWeight, setByWeight] = useState(false);
 
-  // ─── 2. BRAND METRICS & COLORS (Declared at top) ─────────────────────────
-  const primary = tenant?.primary_color ?? "#ff4d00";
+  // Production Domain Configuration
   const base = "https://www.echotakeout.com";
-  const nextStatus = { new: "preparing", preparing: "ready", ready: "done" };
-  const nextLabel = { new: "Start →", preparing: "Ready →", ready: "Done ✓" };
-  const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
-
-  // Self-contained Toggle Component (Pure HTML/Web Layout)
-  const Toggle = ({ value, onChange, label }) => {
-    const activeColor = tenant?.primary_color ?? "#ff4d00";
-    return (
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
-        <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? activeColor : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-          <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
-        </div>
-      </div>
-    );
-  };
-
-  // ─── 3. DATA LOADING ──────────────────────────────────────────────────────
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -271,12 +249,13 @@ export default function AdminPage() {
       price: parseFloat(newPrice), 
       category: newCategory,
       unit: newUnit.trim() || null,
+      by_weight: byWeight,
       photo_url: newPhoto, 
       description: newDesc, 
       in_stock: true, 
       tenant_slug: slug
     }]);
-    setNewName(""); setNewPrice(""); setNewCategory(""); setNewPhoto(""); setNewDesc(""); setNewUnit("");
+    setNewName(""); setNewPrice(""); setNewCategory(""); setNewPhoto(""); setNewDesc(""); setNewUnit(""); setByWeight(false);
     loadMenu();
   }
 
@@ -367,6 +346,8 @@ export default function AdminPage() {
     filteredOrders = filteredOrders.filter(o => o.status === filterStatus);
   }
 
+  const primary = tenant?.primary_color ?? "#ff4d00";
+  const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
   const categories = [...new Set(items.map(i => i.category))];
 
   const getSubWarning = () => {
@@ -383,6 +364,19 @@ export default function AdminPage() {
     return null;
   };
   const subWarning = getSubWarning();
+
+  // Self-contained Toggle Component (Pure HTML/Web Layout)
+  const Toggle = ({ value, onChange, label }) => {
+    const activeColor = tenant?.primary_color ?? "#ff4d00";
+    return (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
+        <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? activeColor : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+          <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+        </div>
+      </div>
+    );
+  };
 
   // ─── 6. STYLING SHEETS (Pure HTML Web Styling) ────────────────────────────
   const styles = {
@@ -485,7 +479,7 @@ export default function AdminPage() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        {/* FIXED: Removed React Native <View> wrapper completely */}
+        {/* FIXED: Replaced native <View> with standard web <div> */}
         <div style={{ flex: 1 }}>
           <h1 style={styles.headerTitle}>⚙️ {tenant?.name}</h1>
         </div>
@@ -613,7 +607,8 @@ export default function AdminPage() {
               <input style={styles.input} placeholder="e.g. 500g" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
               <label style={styles.label}>Description (optional)</label>
               <textarea style={{ ...styles.input, height: 80, resize: "vertical" }} placeholder="Brief description..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
-              <button style={{ ...styles.btn(primary), width: "100%" }} onClick={addItem}>Add item</button>
+              <Toggle label="Priced by Weight (Per 1 Kg)" value={byWeight} onChange={setByWeight} />
+              <button style={{ ...styles.btn(primary), width: "100%", marginTop: 12 }} onClick={addItem}>Add item</button>
             </div>
           )}
 

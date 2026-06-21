@@ -27,8 +27,6 @@ const loadRazorpayScript = () => {
 };
 
 export default function RestaurantPage() {
-  const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [selectedDeliveryOption, setSelectedDeliveryOption] = useState(null);
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
   const [cart, setCart] = useState([]);
   const [screen, setScreen] = useState("menu");
@@ -48,57 +46,52 @@ export default function RestaurantPage() {
   const [queueFull, setQueueFull] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
 
+  // Delivery States
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [selectedDeliveryOption, setSelectedDeliveryOption] = useState(null);
+
   useEffect(() => {
-    // Inside app/[slug]/page.tsx, replace the loadData() function inside useEffect with this:
-async function loadData() {
-  // SECURITY: Explicitly query only public columns.
-      const { data: tenantData, error: tenantError } = await supabase.from("tenants")
-        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options")
+    async function loadData() {
+      // SECURITY: Explicitly query only public columns.
+      const { data: tenantData } = await supabase.from("tenants")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options, notes_placeholder")
         .eq("slug", slug)
         .single();
 
-  if (tenantError) {
-    console.error("Supabase Tenant Query Error:", tenantError.message);
-    setLoading(false);
-    return;
-  }
+      if (!tenantData) { setLoading(false); return; }
+      setTenant(tenantData);
 
-  setTenant(tenantData);
+      // Default payment method based on merchant configuration
+      setPaymentMethod(tenantData.online_payments_enabled ? "online" : "counter");
 
-      // Safe Dynamic Payment Method Fallback
-      if (tenantData.online_payments_enabled && !tenantData.cash_payments_enabled) {
-        setPaymentMethod("online");
-      } else {
-        setPaymentMethod("counter");
-      }
-  const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
-  if (sub) {
-    const expires = new Date(sub.expires_at);
-    const now = new Date();
-    const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
-    if ((sub.status === "expired" || now > expires) && diffDays > 7) {
-      setOffline(true); setLoading(false); return;
-    }
-  }
-
-  if (tenantData.queue_limit_enabled) {
-    const { data: activeOrders } = await supabase.from("orders").select("id")
-      .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
-    if (activeOrders && activeOrders.length >= tenantData.queue_limit) setQueueFull(true);
-  }
-  
-  if (tenantData.delivery_enabled && tenantData.delivery_options?.length > 0) {
+      if (tenantData.delivery_enabled && tenantData.delivery_options?.length > 0) {
         setSelectedDeliveryOption(tenantData.delivery_options[0]);
       }
 
-  const { data: menuData } = await supabase.from("menu_items").select("*")
-    .eq("tenant_slug", slug).eq("in_stock", true);
-  if (menuData) {
-    setItems(menuData);
-    setActiveCategory([...new Set(menuData.map(i => i.category))][0]);
-  }
-  setLoading(false);
-}
+      const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_slug", slug).single();
+      if (sub) {
+        const expires = new Date(sub.expires_at);
+        const now = new Date();
+        const diffDays = (now - expires) / (1000 * 60 * 60 * 24);
+        if ((sub.status === "expired" || now > expires) && diffDays > 7) {
+          setOffline(true); setLoading(false); return;
+        }
+      }
+
+      if (tenantData.queue_limit_enabled) {
+        const { data: activeOrders } = await supabase.from("orders").select("id")
+          .eq("tenant_slug", slug).in("status", ["new", "preparing"]);
+        if (activeOrders && activeOrders.length >= tenantData.queue_limit) setQueueFull(true);
+      }
+
+      const { data: menuData } = await supabase.from("menu_items").select("*")
+        .eq("tenant_slug", slug).eq("in_stock", true);
+      if (menuData) {
+        setItems(menuData);
+        setActiveCategory([...new Set(menuData.map(i => i.category))][0]);
+      }
+      setLoading(false);
+    }
 
     async function refreshMenu() {
       const { data: menuData } = await supabase.from("menu_items").select("*")
@@ -118,25 +111,68 @@ async function loadData() {
     return () => { clearInterval(menuInterval); clearInterval(pageInterval); };
   }, [slug]);
 
+  // Stepper Adder: Supports regular increments (+1) & weight increments (+250g)
   const addToCart = (item) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === item.name);
-      if (existing) return prev.map((i) => i.name === item.name ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { ...item, qty: 1 }];
+      if (existing) {
+        if (item.by_weight) {
+          const newWeight = (parseInt(existing.qty) || 0) + 250;
+          return prev.map((i) => i.name === item.name ? { ...i, qty: newWeight } : i);
+        }
+        return prev.map((i) => i.name === item.name ? { ...i, qty: i.qty + 1 } : i);
+      }
+      const initialQty = item.by_weight ? 250 : 1; // Start at 250g for sweets/snacks
+      return [...prev, { ...item, qty: initialQty }];
     });
   };
 
+  // Stepper Remover: Supports regular decrements (-1) & weight decrements (-250g)
   const removeFromCart = (itemName) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === itemName);
+      if (!existing) return prev;
+      if (existing.by_weight) {
+        const newWeight = (parseInt(existing.qty) || 0) - 250;
+        if (newWeight <= 0) return prev.filter((i) => i.name !== itemName);
+        return prev.map((i) => i.name === itemName ? { ...i, qty: newWeight } : i);
+      }
       if (existing.qty === 1) return prev.filter((i) => i.name !== itemName);
       return prev.map((i) => i.name === itemName ? { ...i, qty: i.qty - 1 } : i);
     });
   };
 
+  // Manual Input Quantity / Weight Editor
+  const updateCartQty = (item, qtyString) => {
+    if (qtyString === "") {
+      setCart((prev) => prev.map((i) => i.name === item.name ? { ...i, qty: "" } : i));
+      return;
+    }
+    const qty = parseInt(qtyString);
+    if (isNaN(qty) || qty < 0) return;
+    if (qty === 0) {
+      setCart((prev) => prev.filter((i) => i.name !== item.name));
+    } else {
+      setCart((prev) => prev.map((i) => i.name === item.name ? { ...i, qty } : i));
+    }
+  };
+
+  // Dynamic Math Solver: Integrates regular quantities and fractional weights
   const deliveryCharge = (orderType === "delivery" && selectedDeliveryOption) ? selectedDeliveryOption.price : 0;
-  const total = cart.reduce((sum, i) => sum + i.price * i.qty, 0) + deliveryCharge;
-  const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
+  
+  const total = cart.reduce((sum, i) => {
+    const qty = i.qty === "" ? 0 : parseInt(i.qty) || 0;
+    if (i.by_weight) {
+      return sum + i.price * (qty / 1000); // (Grams / 1000) * PricePerKg
+    }
+    return sum + i.price * qty;
+  }, 0) + deliveryCharge;
+
+  const cartCount = cart.reduce((sum, i) => {
+    if (i.by_weight) return sum + 1; // Treat weight-based lines as 1 cart item
+    const qty = i.qty === "" ? 0 : parseInt(i.qty) || 0;
+    return sum + qty;
+  }, 0);
 
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
@@ -164,18 +200,19 @@ async function loadData() {
     }
 
     setProcessingPayment(true);
-    const itemsSummary = cart.map(i => `${i.name} x${i.qty}`).join(", ");
+    
+    // SECURITY & KOT FORMATTING: Dynamic summaries for unit products vs weight products
+    const itemsSummary = cart.map(i => {
+      if (i.by_weight) return `${i.name} (${i.qty}g)`;
+      return `${i.name} x${i.qty}`;
+    }).join(", ");
     
     const initialStatus = paymentMethod === "online" ? "pending_payment" : "new";
     const orderAddress = orderType === "delivery" ? `Delivery to: ${deliveryAddress}` : null;
 
     const { data, error } = await supabase.from("orders").insert([{
-      customer_name: name, 
-      phone, 
-      items: itemsSummary, 
-      total,
-      status: initialStatus, 
-      tenant_slug: slug,
+      customer_name: name, phone, items: itemsSummary, total,
+      status: initialStatus, tenant_slug: slug,
       order_type: orderType,
       table_number: orderType === "dine-in" ? tableNumber : null,
       notes: notes ? `${notes} (Method: ${orderType} ${orderAddress ? `- ${orderAddress}` : ""})` : orderAddress,
@@ -187,7 +224,7 @@ async function loadData() {
       return; 
     }
 
-    // SCENARIO A: Cash/Counter payments
+    // SCENARIO A: Counter / Cash payments
     if (paymentMethod === "counter") {
       setOrderNumber(data.id);
       setScreen("success");
@@ -214,7 +251,7 @@ async function loadData() {
       return;
     }
 
-    // SCENARIO B: Razorpay Integration with Merchant's Public Key ID
+    // SCENARIO B: Razorpay Integrations
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) {
       setProcessingPayment(false);
@@ -232,7 +269,6 @@ async function loadData() {
 
       if (razorpayOrder.error) throw new Error(razorpayOrder.error);
 
-      // Graceful local emulation check if no valid keys are configured
       if (razorpayOrder.isMock) {
         alert("🔒 Development sandbox mode. Emulating successful transaction.");
         const verifyRes = await fetch("/api/razorpay/verify", {
@@ -251,14 +287,14 @@ async function loadData() {
           setOrderNumber(data.id);
           setScreen("success");
         } else {
-          alert("Verification of mock payment failed.");
+          alert("Payment verification failed.");
         }
         setProcessingPayment(false);
         return;
       }
 
       const options = {
-        key: tenant.razorpay_key_id, // Dynamically loaded public Key ID
+        key: tenant.razorpay_key_id,
         amount: Math.round(total * 100),
         currency: "INR",
         name: tenant.name,
@@ -284,9 +320,11 @@ async function loadData() {
               setScreen("success");
             } else {
               alert("Payment verification failed.");
+              await supabase.from("orders").delete().eq("id", data.id);
             }
           } catch (err) {
             alert("Error verifying payment.");
+            await supabase.from("orders").delete().eq("id", data.id);
           } finally {
             setProcessingPayment(false);
           }
@@ -299,8 +337,9 @@ async function loadData() {
           color: primary,
         },
         modal: {
-          ondismiss: function () {
+          ondismiss: async function () {
             setProcessingPayment(false);
+            await supabase.from("orders").delete().eq("id", data.id);
           }
         }
       };
@@ -309,6 +348,7 @@ async function loadData() {
       paymentWindow.open();
     } catch (err) {
       setProcessingPayment(false);
+      await supabase.from("orders").delete().eq("id", data.id);
       alert("Payment gateway error. Please pay at counter or try again.");
       console.error(err);
     }
@@ -364,6 +404,8 @@ async function loadData() {
     addBtn: { marginTop: 6, background: primary, color: "white", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600 },
     qtyRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 6 },
     qtyBtn: { width: 24, height: 24, borderRadius: "50%", border: `1px solid ${primary}`, background: "white", cursor: "pointer", fontSize: 14, color: primary, fontWeight: 700 },
+    qtyInput: { width: "42px", textAlign: "center", border: `1px solid ${primary}`, borderRadius: "6px", fontSize: "14px", fontWeight: "700", padding: "3px 0", boxSizing: "border-box" },
+    weightInput: { width: "52px", textAlign: "center", border: `1px solid ${primary}`, borderRadius: "6px", fontSize: "14px", fontWeight: "700", padding: "3px 0", boxSizing: "border-box" },
     cartBar: { position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", background: primary, color: "white", padding: "13px 28px", borderRadius: 50, cursor: "pointer", fontWeight: 700, fontSize: 14, border: "none", whiteSpace: "nowrap", zIndex: 20 },
     input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${secondary}`, fontSize: 15, marginBottom: 12, boxSizing: "border-box" },
     orderBtn: { width: "100%", padding: 14, background: primary, color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" },
@@ -426,10 +468,35 @@ async function loadData() {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={s.price}>₹{item.price * item.qty}</p>
+            <p style={s.price}>
+              {/* Dynamic Subtotal Price math display based on unit or weight metric */}
+              ₹{item.by_weight ? ((item.qty || 0) / 1000 * item.price).toFixed(2) : (item.price * item.qty)}
+            </p>
             <div style={s.qtyRow}>
-              <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{item.qty}</span>
+              <button style={s.qtyBtn} onClick={() => removeFromCart(item)}>−</button>
+              
+              {/* Renders numeric input for standard items and gram-weight input for sweets/snacks */}
+              {item.by_weight ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <input 
+                    type="number" 
+                    value={item.qty} 
+                    onChange={e => updateCartQty(item, e.target.value)} 
+                    style={s.weightInput} 
+                    min="10"
+                  />
+                  <span style={{ fontSize: 13, fontWeight: "700" }}>g</span>
+                </div>
+              ) : (
+                <input 
+                  type="number" 
+                  value={item.qty} 
+                  onChange={e => updateCartQty(item, e.target.value)} 
+                  style={s.qtyInput} 
+                  min="0"
+                />
+              )}
+
               <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
             </div>
           </div>
@@ -438,22 +505,24 @@ async function loadData() {
 
       <div style={{ borderTop: `2px dashed ${secondary}`, paddingTop: 16, marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18 }}>
-          <span>Total</span><span style={{ color: primary }}>₹{total}</span>
+          <span>Total</span><span style={{ color: primary }}>₹{total.toFixed(2)}</span>
         </div>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Order type</p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {tenant.dine_in_enabled && (
-            <button style={s.typeBtn(orderType === "dine-in")} onClick={() => setOrderType("dine-in")}>🪑 Dine-in</button>
-          )}
-          <button style={s.typeBtn(orderType === "takeaway")} onClick={() => setOrderType("takeaway")}>🥡 Takeaway</button>
-          {tenant.delivery_enabled && (
-            <button style={s.typeBtn(orderType === "delivery")} onClick={() => setOrderType("delivery")}>🚚 Delivery</button>
-          )}
+      {tenant.dine_in_enabled && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Order type</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {tenant.dine_in_enabled && (
+              <button style={s.typeBtn(orderType === "dine-in")} onClick={() => setOrderType("dine-in")}>🪑 Dine-in</button>
+            )}
+            <button style={s.typeBtn(orderType === "takeaway")} onClick={() => setOrderType("takeaway")}>🥡 Takeaway</button>
+            {tenant.delivery_enabled && (
+              <button style={s.typeBtn(orderType === "delivery")} onClick={() => setOrderType("delivery")}>🚚 Delivery</button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {orderType === "dine-in" && (
         <input style={s.input} placeholder="Table number" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
@@ -461,7 +530,6 @@ async function loadData() {
 
       {orderType === "delivery" && (
         <div>
-          {/* Delivery Option Selector */}
           {tenant.delivery_options?.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Select Delivery Service</p>
@@ -483,7 +551,6 @@ async function loadData() {
         </div>
       )}
 
-      {/* Conditional Payment Selection Toggle */}
       {tenant.online_payments_enabled && tenant.cash_payments_enabled && (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Payment Method</p>
@@ -493,19 +560,19 @@ async function loadData() {
           </div>
         </div>
       )}
-      
+
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
       {tenant.customize_order_enabled && (
         <textarea
           style={{ ...s.input, resize: "vertical", minHeight: 80, fontSize: 14 }}
-          placeholder="Special instructions or preparation requests (e.g. custom cuts, packaging preferences, no onions, extra spicy...)"
+          placeholder={tenant.notes_placeholder || "Special instructions (e.g. no onions, extra spicy, allergies...)"}
           value={notes}
           onChange={e => setNotes(e.target.value)}
         />
       )}
-      
+
       <button style={{ ...s.orderBtn, opacity: (queueFull || processingPayment) ? 0.5 : 1 }} onClick={placeOrder} disabled={queueFull || processingPayment}>
         {processingPayment ? "Processing..." : queueFull ? "Kitchen busy — try again soon" : "Place order →"}
       </button>
@@ -559,17 +626,38 @@ async function loadData() {
                     : <div style={{ ...s.photo, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🍽️</div>
                   }
                   <div style={{ minWidth: 0 }}>
-                    <p style={s.itemName}>{item.name}</p>
+                    <p style={s.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</p>
                     {item.description && <p style={s.itemDesc}>{item.description}</p>}
-                    <p style={s.itemCat}>{item.category}</p>
+                    <p style={s.itemCat}>{item.category} {item.by_weight ? "· ₹" + item.price + " / kg" : ""}</p>
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <p style={s.price}>₹{item.price}</p>
                   {inCart ? (
                     <div style={s.qtyRow}>
-                      <button style={s.qtyBtn} onClick={() => removeFromCart(item.name)}>−</button>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>{inCart.qty}</span>
+                      <button style={s.qtyBtn} onClick={() => removeFromCart(item)}>−</button>
+                      
+                      {item.by_weight ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                          <input 
+                            type="number" 
+                            value={inCart.qty} 
+                            onChange={e => updateCartQty(item, e.target.value)} 
+                            style={s.weightInput} 
+                            min="10"
+                          />
+                          <span style={{ fontSize: 13, fontWeight: "700" }}>g</span>
+                        </div>
+                      ) : (
+                        <input 
+                          type="number" 
+                          value={inCart.qty} 
+                          onChange={e => updateCartQty(item, e.target.value)} 
+                          style={s.qtyInput} 
+                          min="0"
+                        />
+                      )}
+
                       <button style={s.qtyBtn} onClick={() => addToCart(item)}>+</button>
                     </div>
                   ) : (
@@ -584,7 +672,7 @@ async function loadData() {
 
       {cartCount > 0 && (
         <button style={s.cartBar} onClick={() => setScreen("cart")}>
-          View order · {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{total}
+          View order · {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{total.toFixed(2)}
         </button>
       )}
 
