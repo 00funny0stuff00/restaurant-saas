@@ -73,7 +73,13 @@ export default function AdminPage() {
 
   // Production Domain Configuration
   const base = "https://www.echotakeout.com";
-
+  // Add this function inside your AdminPage component:
+  
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+  
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
