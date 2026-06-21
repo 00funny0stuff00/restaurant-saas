@@ -82,6 +82,14 @@ export default function AdminPage() {
   const nextLabel = { new: "Start →", preparing: "Ready →", ready: "Done ✓" };
   const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
 
+  // QR pages link routing schema
+  const qrPages = [
+    { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
+    { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
+    { label: "Admin", desc: "Quick access to your admin panel", url: `${base}/${slug}/admin`, icon: "⚙️" },
+    { label: "Dashboard", desc: "Quick access to your owner dashboard", url: `${base}/dashboard`, icon: "📊" },
+  ];
+
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -352,7 +360,7 @@ export default function AdminPage() {
 
   // ─── 5. DATA FILTER CASCADES ───────────────────────────────────────────────
   const activeOrdersForMetrics = filterDate
-    ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
+    ? orders.filter(o => o.created_at && o.created_at.startsWith(filterDate))
     : orders;
   const cancelledCount = activeOrdersForMetrics.filter(o => o.status === "cancelled").length;
   const netRevenue = activeOrdersForMetrics.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
@@ -363,6 +371,21 @@ export default function AdminPage() {
   }
 
   const categories = [...new Set(items.map(i => i.category))];
+
+  const getSubWarning = () => {
+    if (!subscription) return null;
+    const expires = new Date(subscription.expires_at);
+    const now = new Date();
+    const diffDays = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
+    if (subscription.status === "expired" || diffDays <= 0) {
+      return { msg: `Your subscription expired on ${expires.toLocaleDateString("en-IN")}. Please renew within 7 days or your menu will go offline.`, color: "#ef4444" };
+    }
+    if (diffDays <= 7) {
+      return { msg: `Your subscription expires in ${diffDays} day${diffDays === 1 ? "" : "s"}. Please renew soon.`, color: "#f59e0b" };
+    }
+    return null;
+  };
+  const subWarning = getSubWarning();
 
   // ─── 6. STYLING SHEETS (Pure HTML Web Styling) ────────────────────────────
   const styles = {
@@ -465,6 +488,7 @@ export default function AdminPage() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
+        {/* FIXED: All React Native components replaced with safe Web tags */}
         <div style={{ flex: 1 }}>
           <h1 style={styles.headerTitle}>⚙️ {tenant?.name}</h1>
         </div>
@@ -647,7 +671,7 @@ export default function AdminPage() {
 
           <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-            Allow customers to pay at the register upon collection. Disabling this forces online-only checkouts.
+            Allow customers to pay at the register/counter upon collection. Disabling this forces online-only checkouts.
           </p>
 
           <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
@@ -687,25 +711,50 @@ export default function AdminPage() {
       {/* ─── RESTAURANT TAB ─────────────────────────────────────────────────── */}
       {tab === "restaurant" && (
         <div>
-          <input style={s.input} value={tName} onChange={e => setTName(e.target.value)} placeholder="Restaurant Name" />
-          <input style={s.input} value={tTagline} onChange={e => setTTagline(e.target.value)} placeholder="Tagline" />
-          <input type="color" value={tColor} onChange={e => setTColor(e.target.value)} style={{ marginBottom: 10 }} />
-          <input style={s.input} value={tEmail} onChange={e => setTEmail(e.target.value)} placeholder="Support Email" />
-          <input style={s.input} value={tPhone} onChange={e => setTPhone(e.target.value)} placeholder="Support Phone" />
-          <textarea style={s.input} value={tAddress} onChange={e => setTAddress(e.target.value)} placeholder="Physical Address" />
-          <button style={s.btn(primary)} onClick={saveTenant}>Save Branding</button>
+          <h3 style={settingStyles.sectionTitle}>Branding & Info</h3>
+          
+          <label style={styles.label}>Restaurant Name</label>
+          <input style={styles.input} value={tName} onChange={e => setTName(e.target.value)} placeholder="Restaurant Name" />
+
+          <label style={styles.label}>Tagline</label>
+          <input style={styles.input} value={tTagline} onChange={e => setTTagline(e.target.value)} placeholder="Tagline" />
+
+          <label style={styles.label}>Brand Primary Colour (Hex Code)</label>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+            <input 
+              style={{ ...styles.input, flex: 1, marginBottom: 0 }} 
+              value={tColor} 
+              onChange={e => setTColor(e.target.value)} 
+              maxLength={7} 
+            />
+            <div style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: tColor || '#ff4d00', borderWidth: 1, borderColor: '#eee' }} />
+          </div>
+
+          <h3 style={settingStyles.sectionTitle}>Compliance Settings</h3>
+          <p style={settingStyles.pinDesc}>Configures contact details for dynamic policies on your menu page.</p>
+
+          <label style={styles.label}>Support Email</label>
+          <input style={styles.input} placeholder="contact@yourrestaurant.com" value={tEmail} onChange={e => setTEmail(e.target.value)} />
+
+          <label style={styles.label}>Support Phone</label>
+          <input style={styles.input} placeholder="+91 98765 43210" value={tPhone} onChange={e => setTPhone(e.target.value)} />
+
+          <label style={styles.label}>Physical Address</label>
+          <textarea style={{ ...styles.input, height: 80, resize: "vertical" }} placeholder="Restaurant operational address..." value={tAddress} onChange={e => setTAddress(e.target.value)} />
+
+          <button style={{ ...styles.btn(primary), width: "100%", marginTop: 12 }} onClick={saveTenant}>Save changes</button>
         </div>
       )}
 
       {/* ─── SETTINGS TAB ───────────────────────────────────────────────────── */}
       {tab === "settings" && (
         <div>
-          <Text style={settingStyles.sectionTitle}>Order Settings</Text>
+          <h3 style={settingStyles.sectionTitle}>Order Settings</h3>
           <Toggle label="Enable queue limit" desc="Pause new orders when queue is full" value={queueLimitEnabled} onChange={setQueueLimitEnabled} />
           {queueLimitEnabled && (
             <div style={{ paddingBottom: 12 }}>
-              <Text style={styles.label}>Max orders in queue</Text>
-              <input style={[styles.input, { width: 100 }]} type="number" value={queueLimit} onChange={e => setQueueLimit(e.target.value)} />
+              <p style={styles.label}>Max orders in queue</p>
+              <input style={{ ...styles.input, width: 100 }} type="number" value={queueLimit} onChange={e => setQueueLimit(e.target.value)} />
             </div>
           )}
           <Toggle label="Enable dine-in" desc="Customers can choose dine-in with table number" value={dineInEnabled} onChange={setDineInEnabled} />
@@ -742,16 +791,17 @@ export default function AdminPage() {
           </button>
 
           <div style={settingStyles.pinSection}>
-            <Text style={settingStyles.sectionTitle}>Kitchen PIN</Text>
-            <Text style={settingStyles.pinDesc}>Kitchen staff enter this PIN to access the kitchen display.</Text>
-            <input style={[styles.input, settingStyles.pinInput]} value={kitchenPin} onChange={e => setKitchenPin(e.target.value)} placeholder="e.g. 1234" maxLength={8} />
+            <h3 style={settingStyles.sectionTitle}>Kitchen PIN</h3>
+            <p style={settingStyles.pinDesc}>Kitchen staff enter this PIN to access the kitchen display.</p>
+            <input style={{ ...styles.input, ...settingStyles.pinInput }} value={kitchenPin} onChange={e => setKitchenPin(e.target.value)} placeholder="e.g. 1234" maxLength={8} />
             <button style={{ ...styles.btn(primary), width: "100%" }} onClick={saveKitchenPin} disabled={savingPin}>
               {savingPin ? "Saving..." : "Save PIN"}
             </button>
           </div>
 
           <div style={settingStyles.pinSection}>
-            <Text style={settingStyles.sectionTitle}>🖨️ Printing</Text>
+            <h3 style={settingStyles.sectionTitle}>🖨️ Printing Configuration</h3>
+            <p style={settingStyles.pinDesc}>Sync printing rules with local WiFi thermal printers.</p>
             <Toggle label="Enable printing" value={printEnabled} onChange={setPrintEnabled} />
             {printEnabled && (
               <div>
