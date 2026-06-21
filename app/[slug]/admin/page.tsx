@@ -20,12 +20,12 @@ export default function AdminPage() {
   const [orders, setOrders] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("orders"); // Matches mobile default tab view
+  const [tab, setTab] = useState("orders");
   const [filterDate, setFilterDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("all"); 
   const [authError, setAuthError] = useState(null);
 
-  // Restaurant details & dynamic colors
+  // Restaurant Branding & Metadata
   const [tName, setTName] = useState("");
   const [tTagline, setTTagline] = useState("");
   const [tColor, setTColor] = useState("");
@@ -47,15 +47,12 @@ export default function AdminPage() {
   const [kitchenPin, setKitchenPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
 
-// Direct Key Payments Settings
+  // Direct Key Payments Settings
   const [onlinePaymentsEnabled, setOnlinePaymentsEnabled] = useState(false);
-  const [cashPaymentsEnabled, setCashPaymentsEnabled] = useState(true); // Added for cash settings
+  const [cashPaymentsEnabled, setCashPaymentsEnabled] = useState(true);
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [razorpayKeySecret, setRazorpayKeySecret] = useState("");
   const [savingPayments, setSavingPayments] = useState(false);
-
-  // New production domain mapping
-  const base = "https://www.echotakeout.com";
 
   // Synced Web Printing Settings
   const [printEnabled, setPrintEnabled] = useState(false);
@@ -64,7 +61,8 @@ export default function AdminPage() {
   const [receiptIP, setReceiptIP] = useState("");
   const [receiptAutoprint, setReceiptAutoprint] = useState("done");
   const [savingPrinter, setSavingPrinter] = useState(false);
-  // Delivery States
+
+  // Delivery Configurations
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [deliveryOptions, setDeliveryOptions] = useState([]);
   const [newDelName, setNewDelName] = useState("");
@@ -72,14 +70,9 @@ export default function AdminPage() {
 
   // Menu Unit State
   const [newUnit, setNewUnit] = useState("");
-  // Delivery States
-  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
-  const [deliveryOptions, setDeliveryOptions] = useState([]);
-  const [newDelName, setNewDelName] = useState("");
-  const [newDelPrice, setNewDelPrice] = useState("");
 
-  // Menu Unit State
-  const [newUnit, setNewUnit] = useState("");
+  // Production Domain Configuration
+  const base = "https://www.echotakeout.com";
 
   useEffect(() => {
     async function init() {
@@ -118,18 +111,21 @@ export default function AdminPage() {
       setEditOrderEnabled(t?.edit_order_enabled ?? false);
       setCustomizeOrderEnabled(t?.customize_order_enabled ?? false);
       setKitchenPin(t?.kitchen_pin ?? "");
-      setDeliveryEnabled(t?.delivery_enabled ?? false);
-      setDeliveryOptions(t?.delivery_options ?? []);
-      // Load payment configuration
+
+      // Load payments
       setOnlinePaymentsEnabled(t?.online_payments_enabled ?? false);
-      setCashPaymentsEnabled(t?.cash_payments_enabled ?? true); // Added
+      setCashPaymentsEnabled(t?.cash_payments_enabled ?? true);
       setRazorpayKeyId(t?.razorpay_key_id ?? "");
       setRazorpayKeySecret(t?.razorpay_key_secret ?? "");
 
-      // Load dynamically generated policy contact points
+      // Load compliance parameters
       setTEmail(t?.support_email ?? "");
       setTPhone(t?.support_phone ?? "");
       setTAddress(t?.physical_address ?? "");
+
+      // Load delivery parameters
+      setDeliveryEnabled(t?.delivery_enabled ?? false);
+      setDeliveryOptions(t?.delivery_options ?? []);
 
       // Load synced printing records from Supabase
       const { data: p } = await supabase.from("print_settings").select("*").eq("tenant_slug", slug).maybeSingle();
@@ -171,7 +167,7 @@ export default function AdminPage() {
       physical_address: tAddress.trim() || null
     }).eq("slug", slug);
     
-    if (error) return alert("Error saving brand metrics.");
+    if (error) return alert("Error saving branding details.");
     alert("Saved!");
   }
 
@@ -183,17 +179,15 @@ export default function AdminPage() {
       dine_in_enabled: dineInEnabled,
       edit_order_enabled: editOrderEnabled,
       customize_order_enabled: customizeOrderEnabled,
-      delivery_enabled: deliveryEnabled, // Saved
-      delivery_options: deliveryOptions, // Saved
+      delivery_enabled: deliveryEnabled,
+      delivery_options: deliveryOptions,
     }).eq("slug", slug);
     setSavingSettings(false);
     if (error) return alert("Error saving settings.");
     alert("Settings saved!");
   }
 
-  // Save changes to Merchant Payments Configuration
   async function savePayments() {
-    // Safety check: Prevent disabling both cash and online payments
     if (!onlinePaymentsEnabled && !cashPaymentsEnabled) {
       return alert("You must enable at least one payment method (Cash or Online Payments).");
     }
@@ -201,13 +195,12 @@ export default function AdminPage() {
     setSavingPayments(true);
     const { error } = await supabase.from("tenants").update({
       online_payments_enabled: onlinePaymentsEnabled,
-      cash_payments_enabled: cashPaymentsEnabled, // Added
+      cash_payments_enabled: cashPaymentsEnabled,
       razorpay_key_id: razorpayKeyId.trim() || null,
       razorpay_key_secret: razorpayKeySecret.trim() || null,
     }).eq("slug", slug);
-    
     setSavingPayments(false);
-    if (error) return alert("Error saving payment configuration.");
+    if (error) return alert("Error saving credentials.");
     alert("Payment settings saved!");
   }
 
@@ -229,7 +222,7 @@ export default function AdminPage() {
       receipt_autoprint: receiptAutoprint
     });
     setSavingPrinter(false);
-    if (error) return alert("Error saving printing variables.");
+    if (error) return alert("Error saving printing settings.");
     alert("Printer settings saved!");
   }
 
@@ -239,7 +232,7 @@ export default function AdminPage() {
   }
 
   async function cancelOrder(id) {
-    if (!confirm("Are you sure you want to cancel this order?")) return;
+    if (!confirm("Cancel order? This cannot be undone.")) return;
     await supabase.from("orders").update({ status: "cancelled" }).eq("id", id);
     loadOrders();
   }
@@ -250,7 +243,7 @@ export default function AdminPage() {
       name: newName, 
       price: parseFloat(newPrice), 
       category: newCategory,
-      unit: newUnit.trim() || null, // Saved
+      unit: newUnit.trim() || null,
       photo_url: newPhoto, 
       description: newDesc, 
       in_stock: true, 
@@ -319,20 +312,6 @@ export default function AdminPage() {
     alert("Kitchen PIN saved!");
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
-
-  function downloadQR(url, label) {
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
-    const a = document.createElement("a");
-    a.href = qrUrl;
-    a.download = `${label}-qr.png`;
-    a.target = "_blank";
-    a.click();
-  }
-
   const qrPages = [
     { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
     { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
@@ -340,18 +319,14 @@ export default function AdminPage() {
     { label: "Dashboard", desc: "Quick access to your owner dashboard", url: `${base}/dashboard`, icon: "📊" },
   ];
 
-  const primary = tenant?.primary_color ?? "#ff4d00";
-  const nextStatus = { new: "preparing", preparing: "ready", ready: "done" };
-  const nextLabel = { new: "Start →", preparing: "Ready →", ready: "Done ✓" };
-
-  // Status metrics
+  // Status Metrics Parsing
   const activeOrdersForMetrics = filterDate
     ? orders.filter(o => new Date(o.created_at).toLocaleDateString("en-CA") === filterDate)
     : orders;
   const cancelledCount = activeOrdersForMetrics.filter(o => o.status === "cancelled").length;
   const netRevenue = activeOrdersForMetrics.filter(o => o.status !== "cancelled").reduce((sum, o) => sum + o.total, 0);
 
-  // Dynamic filter cascade
+  // Dynamic status filters
   let filteredOrders = activeOrdersForMetrics;
   if (filterStatus !== "all") {
     filteredOrders = filteredOrders.filter(o => o.status === filterStatus);
@@ -434,6 +409,7 @@ export default function AdminPage() {
           <input style={s.input} value={tName} onChange={e => setTName(e.target.value)} />
           <label style={{ fontSize: 13, fontWeight: 600 }}>Tagline</label>
           <input style={s.input} value={tTagline} onChange={e => setTTagline(e.target.value)} />
+          
           <label style={{ fontSize: 13, fontWeight: 600 }}>Brand Colour</label>
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
             <input type="color" value={tColor} onChange={e => setTColor(e.target.value)} style={{ width: 48, height: 40, border: "none", cursor: "pointer", borderRadius: 6 }} />
@@ -457,61 +433,59 @@ export default function AdminPage() {
       )}
 
       {tab === "payments" && (
-  <div>
-    <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
-    <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
+        <div>
+          <h3 style={{ fontWeight: 700, marginBottom: 4 }}>Payment Settings</h3>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Configure how your dining customers pay for their orders.</p>
 
-    {/* Onboarding Checklist for Razorpay Compliance */}
-    {onlinePaymentsEnabled && (
-      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
-        <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
-        <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
-          <li style={{ marginBottom: "6px" }}>
-            Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://www.echotakeout.com/{slug}</strong>
-          </li>
-          <li style={{ marginBottom: "6px" }}>
-            Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
-          </li>
-          <li>
-            Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
-          </li>
-        </ol>
-      </div>
-    )}
+          <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+            Allow customers to pay at the register/counter upon collection. Disabling this forces online-only checkouts.
+          </p>
 
-    {/* Cash Payments Configuration */}
-    <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
-    <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-      Allow customers to pay at the register/counter upon collection. Disabling this forces online-only checkouts.
-    </p>
+          <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
+          <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
+            Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
+          </p>
 
-    {/* Online Payments Configuration */}
-    <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
-    <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-      Allow customers to pay instantly using UPI, Cards, or Netbanking. Disabling this switches the menu checkout directly to Cash/Counter payments.
-    </p>
+          {/* Conditionally Render Onboarding Checklist and Credentials Box */}
+          {onlinePaymentsEnabled && (
+            <>
+              {/* Onboarding Checklist for Razorpay Compliance */}
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#1e40af", margin: "0 0 8px" }}>📋 Onboarding Checklist for Razorpay</p>
+                <ol style={{ fontSize: 13, color: "#1e3a8a", paddingLeft: "18px", lineHeight: "1.5", margin: 0 }}>
+                  <li style={{ marginBottom: "6px" }}>
+                    Copy your public store checkout URL: <strong style={{ textDecoration: "underline", color: "#1d4ed8" }}>https://www.echotakeout.com/{slug}</strong>
+                  </li>
+                  <li style={{ marginBottom: "6px" }}>
+                    Paste this link into the **'Website URL'** field when registering your merchant profile on your Razorpay Dashboard.
+                  </li>
+                  <li>
+                    Navigate to the <strong>Info</strong> tab and configure your Support Email, Support Phone, and Physical Address so your custom terms, privacy, and refund policies generate correctly.
+                  </li>
+                </ol>
+              </div>
 
-    {/* Conditionally Render Credentials Box */}
-    {onlinePaymentsEnabled && (
-      <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
-        <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
-        <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
-          Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
-        </p>
+              <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 12, padding: "20px", marginBottom: 24 }}>
+                <h4 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700 }}>Your Razorpay Credentials</h4>
+                <p style={{ fontSize: 12, color: "#888", margin: "-10px 0 16px", lineHeight: 1.4 }}>
+                  Register for a standard merchant account at razorpay.com. Under Settings → API Keys, copy your live credentials and paste them here. Funds will settle directly into your bank account.
+                </p>
 
-        <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
-        <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
+                <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key ID</label>
+                <input style={s.input} placeholder="rzp_live_A1B2C3D4" value={razorpayKeyId} onChange={e => setRazorpayKeyId(e.target.value)} />
 
-        <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
-        <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
-      </div>
-    )}
+                <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>Razorpay Key Secret</label>
+                <input style={s.input} type="password" placeholder="••••••••••••••••" value={razorpayKeySecret} onChange={e => setRazorpayKeySecret(e.target.value)} />
+              </div>
+            </>
+          )}
 
-    <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
-      {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
-    </button>
-  </div>
-)}
+          <button style={s.btn(primary)} onClick={savePayments} disabled={savingPayments}>
+            {savingPayments ? "Saving credentials..." : "Save Payment Configuration"}
+          </button>
+        </div>
+      )}
 
       {tab === "settings" && (
         <div>
@@ -534,16 +508,12 @@ export default function AdminPage() {
           <Toggle label="Allow order customization notes" value={customizeOrderEnabled} onChange={setCustomizeOrderEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>Customers can add special instructions like "no onions" or "extra spicy".</p>
           
-          <button style={{ ...s.btn(primary), marginBottom: 32 }} onClick={saveSettings} disabled={savingSettings}>
-            {savingSettings ? "Saving..." : "Save settings"}
-          </button>
           {/* Delivery Configuration */}
           <Toggle label="Enable Delivery" value={deliveryEnabled} onChange={setDeliveryEnabled} />
           {deliveryEnabled && (
             <div style={{ background: "#fcfcfc", border: "1px solid #eee", borderRadius: 10, padding: 16, marginTop: 10, marginBottom: 20 }}>
               <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>Delivery Options Manager</p>
               
-              {/* Option adder form */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 <input style={{ ...s.input, marginBottom: 0, flex: 2 }} placeholder="e.g. Standard Delivery" value={newDelName} onChange={e => setNewDelName(e.target.value)} />
                 <input style={{ ...s.input, marginBottom: 0, flex: 1 }} type="number" placeholder="₹ Price" value={newDelPrice} onChange={e => setNewDelPrice(e.target.value)} />
@@ -555,7 +525,6 @@ export default function AdminPage() {
                 }}>Add</button>
               </div>
 
-              {/* Active Options list */}
               {deliveryOptions.map(opt => (
                 <div key={opt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
                   <span style={{ fontSize: 14 }}>{opt.name} — <strong>₹{opt.price}</strong></span>
@@ -566,6 +535,11 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+
+          <button style={{ ...s.btn(primary), marginBottom: 32 }} onClick={saveSettings} disabled={savingSettings}>
+            {savingSettings ? "Saving..." : "Save settings"}
+          </button>
+
           {/* Kitchen PIN */}
           <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
             <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>Kitchen PIN</h3>
@@ -585,7 +559,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Web Printing Configuration - Fully Matches Mobile Params */}
+          {/* Web Printing Configuration */}
           <div style={{ padding: "24px 0", borderTop: "1px solid #f0f0f0" }}>
             <h3 style={{ fontWeight: 700, marginBottom: 4, fontSize: 15 }}>🖨️ Printing Configuration</h3>
             <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Sync printing rules with local WiFi thermal printers.</p>
@@ -643,8 +617,8 @@ export default function AdminPage() {
           <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Add new item</h3>
           <input style={s.input} placeholder="Item name" value={newName} onChange={e => setNewName(e.target.value)} />
           <input style={s.input} placeholder="Price (e.g. 120)" type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
-          <input style={s.input} placeholder="Pricing Unit (e.g. 500g, 1 Plate, Per piece)" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
           <input style={s.input} placeholder="Category (e.g. Starters)" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+          <input style={s.input} placeholder="Pricing Unit (e.g. 500g, 1 Plate, Per piece)" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
           <textarea style={{ ...s.input, resize: "vertical", minHeight: 70 }} placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)} />
           <input style={s.input} placeholder="Photo URL (optional)" value={newPhoto} onChange={e => setNewPhoto(e.target.value)} />
           <button style={{ ...s.btn(primary), marginBottom: 28 }} onClick={addItem}>Add item</button>
