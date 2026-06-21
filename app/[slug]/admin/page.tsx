@@ -74,15 +74,7 @@ export default function AdminPage() {
   // Production Domain Configuration
   const base = "https://www.echotakeout.com";
   // Add this function inside your AdminPage component:
-  // Paste this INSIDE your AdminPage component (just above const s = { ... }):
-  const Toggle = ({ value, onChange, label }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
-      <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
-      <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? primary : "#ddd", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-        <div style={{ position: "absolute", top: 2, left: value ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
-      </div>
-    </div>
-  );
+  
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -364,6 +356,7 @@ export default function AdminPage() {
   };
   const subWarning = getSubWarning();
 
+  // Paste this INSIDE your AdminPage component (just above const s = { ... }):
   const Toggle = ({ value, onChange, label }) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
       <span style={{ fontSize: 14, fontWeight: 600 }}>{label}</span>
