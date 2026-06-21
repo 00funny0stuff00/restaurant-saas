@@ -500,12 +500,12 @@ async function loadData() {
       {tenant.customize_order_enabled && (
         <textarea
           style={{ ...s.input, resize: "vertical", minHeight: 80, fontSize: 14 }}
-          placeholder="Special instructions (e.g. no onions, extra spicy, allergies...)"
+          placeholder="Special instructions or preparation requests (e.g. custom cuts, packaging preferences, no onions, extra spicy...)"
           value={notes}
           onChange={e => setNotes(e.target.value)}
         />
       )}
-
+      
       <button style={{ ...s.orderBtn, opacity: (queueFull || processingPayment) ? 0.5 : 1 }} onClick={placeOrder} disabled={queueFull || processingPayment}>
         {processingPayment ? "Processing..." : queueFull ? "Kitchen busy — try again soon" : "Place order →"}
       </button>
