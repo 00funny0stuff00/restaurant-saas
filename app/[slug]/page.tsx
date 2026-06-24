@@ -234,8 +234,11 @@ export default function RestaurantPage() {
     }
 
     // SCENARIO A: Counter / Cash payments
+    // SCENARIO A: Counter Payment (Or Direct UPI verification by staff)
     if (paymentMethod === "counter") {
-      setOrderNumber(data.id);
+      // SECURE CO-BUILDER FIX: Store checkout phone & display dynamic token
+      localStorage.setItem("track_phone_" + data.id, phone);
+      setOrderNumber(data.token_number || data.id);
       setScreen("success");
       setProcessingPayment(false);
 
@@ -278,6 +281,7 @@ export default function RestaurantPage() {
 
       if (razorpayOrder.error) throw new Error(razorpayOrder.error);
 
+      // Fallback for mock checkout mode on development or empty keys
       if (razorpayOrder.isMock) {
         alert("🔒 Development sandbox mode. Emulating successful transaction.");
         const verifyRes = await fetch("/api/razorpay/verify", {
@@ -293,10 +297,12 @@ export default function RestaurantPage() {
         });
         const verifyResult = await verifyRes.json();
         if (verifyResult.success) {
-          setOrderNumber(data.id);
+          // SECURE CO-BUILDER FIX: Store checkout phone & display dynamic token
+          localStorage.setItem("track_phone_" + data.id, phone);
+          setOrderNumber(data.token_number || data.id);
           setScreen("success");
         } else {
-          alert("Payment verification failed.");
+          alert("Mock transaction verification failed.");
         }
         setProcessingPayment(false);
         return;
@@ -325,7 +331,9 @@ export default function RestaurantPage() {
             const verifyResult = await verifyRes.json();
 
             if (verifyResult.success) {
-              setOrderNumber(data.id);
+              // SECURE CO-BUILDER FIX: Store checkout phone & display dynamic token
+              localStorage.setItem("track_phone_" + data.id, phone);
+              setOrderNumber(data.token_number || data.id);
               setScreen("success");
             } else {
               alert("Payment verification failed.");

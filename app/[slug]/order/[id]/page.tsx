@@ -13,6 +13,11 @@ export default function OrderTracking() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [wrongRestaurant, setWrongRestaurant] = useState(false);
+  
+  // 2-Factor Verification states
+  const [phoneInput, setPhoneInput] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
 
   async function loadOrder() {
     const { data } = await supabase.from("orders").select("*").eq("id", orderId).single();
@@ -22,6 +27,12 @@ export default function OrderTracking() {
         return;
       }
       setOrder(data);
+
+      // Check if already verified via localStorage session
+      const savedPhone = localStorage.getItem("track_phone_" + orderId);
+      if (savedPhone === data.phone) {
+        setVerified(true);
+      }
     }
   }
 
@@ -33,9 +44,26 @@ export default function OrderTracking() {
       setLoading(false);
     }
     init();
-    const interval = setInterval(loadOrder, 6000);
+    const interval = setInterval(() => {
+      if (verified) loadOrder(); // Only auto-refresh if they have successfully verified
+    }, 6000);
     return () => clearInterval(interval);
-  }, []);
+  }, [verified]);
+
+  function handleVerify(e) {
+    e.preventDefault();
+    setVerificationError("");
+    if (!order) return;
+
+    const cleanedInput = phoneInput.trim();
+    // Verify entered digits match database or end-matched numbers
+    if (cleanedInput === order.phone || (order.phone.endsWith(cleanedInput) && cleanedInput.length >= 10)) {
+      localStorage.setItem("track_phone_" + orderId, order.phone);
+      setVerified(true);
+    } else {
+      setVerificationError("Incorrect phone number. Please try again.");
+    }
+  }
 
   async function cancelOrder() {
     if (!confirm("Are you sure you want to cancel your order?")) return;
@@ -99,20 +127,53 @@ export default function OrderTracking() {
     }),
     orderCard: { background: "#f9f9f9", borderRadius: 12, padding: 16, marginTop: 24 },
     cancelBtn: { width: "100%", padding: 12, background: "white", color: "#ef4444", border: "2px solid #ef4444", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 12 },
+    input: { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 15, marginBottom: 12, boxSizing: "border-box" },
+    btn: { width: "100%", padding: 14, background: primary, color: "white", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer" }
   };
 
-  const trackingUrl = `https://restaurant-saas-vert.vercel.app/${slug}/order/${order.id}`;
+  // ─── Verification Gate screen (Secure Barrier) ──────────────────────────
+  if (!verified) {
+    return (
+      <div style={s.wrap}>
+        <div style={{ textAlign: "center", marginTop: 40 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Secure Order Tracking</h2>
+          <p style={{ color: "#888", fontSize: 13, marginBottom: 24, lineHeight: 1.5 }}>
+            To view tracking details for Token <strong>#{order.token_number || order.id}</strong>, please verify the phone number used during checkout:
+          </p>
+          
+          <form onSubmit={handleVerify}>
+            <input 
+              type="tel"
+              style={s.input}
+              placeholder="Enter 10-digit Phone Number"
+              value={phoneInput}
+              onChange={e => setPhoneInput(e.target.value.replace(/\D/g, ""))}
+              maxLength={10}
+              required
+            />
+            {verificationError ? <p style={{ color: "#ef4444", fontSize: 13, marginTop: -8, marginBottom: 12 }}>{verificationError}</p> : null}
+            <button type="submit" style={s.btn}>Verify & Track Order →</button>
+          </form>
+
+          <a href={`/${slug}`} style={{ display: "block", marginTop: 20, color: "#888", textDecoration: "none", fontSize: 13 }}>← Back to menu</a>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Standard Tracking screen (Unlocked) ──────────────────────────────────
+  const trackingUrl = `https://www.echotakeout.com/${slug}/order/${order.id}`;
   const kotMessage = `🧾 *${tenant?.name} — Order Confirmed!*
 
-Token: *#${order.id}*
-${isDineIn && order.table_number ? `Table: ${order.table_number}
-` : ""}Items: ${order.items}
+Token: *#${order.token_number || order.id}*
+${isDineIn && order.table_number ? `Table: ${order.table_number}\n` : ""}Items: ${order.items}
 Total: ₹${order.total}
 
 Track your order 👉 ${trackingUrl}`;
 
   function openWhatsApp() {
-    window.open(`https://wa.me/?text=${encodeURIComponent(kotMessage)}`, "_blank");
+    window.open(`https://wa.me/?text={encodeURIComponent(kotMessage)}`, "_blank");
   }
 
   function openSMS() {
@@ -125,7 +186,7 @@ Track your order 👉 ${trackingUrl}`;
         <p style={{ fontSize: 14, color: "#888", margin: "0 0 8px" }}>{tenant?.name}</p>
         <div style={s.tokenBox}>
           <p style={s.tokenLabel}>{isCancelled ? "Cancelled order" : "Your token"}</p>
-          <p style={s.tokenNum}>#{order.id}</p>
+          <p style={s.tokenNum}>#{order.token_number || order.id}</p>
         </div>
         {isCancelled && <p style={{ color: "#ef4444", fontWeight: 700, fontSize: 16, marginTop: 8 }}>❌ Your order was cancelled. Please speak to staff.</p>}
         {isDone && <p style={{ color: "#16a34a", fontWeight: 700, fontSize: 16, marginTop: 8 }}>✅ {isDineIn ? "Enjoy your meal!" : "Order complete. Thank you!"}</p>}
