@@ -13,7 +13,7 @@ function isValidIPv4(ip) {
 export default function AdminPage() {
   const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] : "";
 
-  // ─── 1. STATES ─────────────────────────────────────────────────────────────
+  // ─── 1. ALL STATES ─────────────────────────────────────────────────────────
   const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [items, setItems] = useState([]);
@@ -39,8 +39,7 @@ export default function AdminPage() {
   const [newCategory, setNewCategory] = useState("");
   const [newPhoto, setNewPhoto] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  // Add this state to track which item is being edited:
-  const [editingItemId, setEditingItemId] = useState(null);
+
   // Settings
   const [queueLimitEnabled, setQueueLimitEnabled] = useState(false);
   const [queueLimit, setQueueLimit] = useState(10);
@@ -72,9 +71,9 @@ export default function AdminPage() {
   const [newDelName, setNewDelName] = useState("");
   const [newDelPrice, setNewDelPrice] = useState("");
 
-  // Menu Unit & Weight States
-  const [newUnit, setNewUnit] = useState("");
+  // Menu Weight State
   const [byWeight, setByWeight] = useState(false);
+  const [editingItemId, setEditingItemId] = useState(null);
 
   // ─── 2. CONSTANTS & COMPONENT HELPERS ──────────────────────────────────────
   const primary = tenant?.primary_color ?? "#ff4d00";
@@ -83,7 +82,6 @@ export default function AdminPage() {
   const nextLabel = { new: "Start →", preparing: "Ready →", ready: "Done ✓" };
   const statusColor = { new: "#ff4d00", preparing: "#f59e0b", ready: "#16a34a", done: "#888", cancelled: "#ef4444" };
 
-  // QR pages link routing schema
   const qrPages = [
     { label: "Menu", desc: "Share with customers to browse and order", url: `${base}/${slug}`, icon: "🍽️" },
     { label: "Kitchen", desc: "Open on kitchen screen to see live orders", url: `${base}/${slug}/kitchen`, icon: "👨‍🍳" },
@@ -274,12 +272,10 @@ export default function AdminPage() {
     loadOrders();
   }
 
-  // Reset all form inputs and exit edit/add modes cleanly
   const resetMenuForm = () => {
     setNewName("");
     setNewPrice("");
     setNewCategory("");
-    setNewUnit("");
     setNewPhoto("");
     setNewDesc("");
     setByWeight(false);
@@ -287,9 +283,8 @@ export default function AdminPage() {
     setShowAdd(false);
   };
 
-  // Save edits of an already existing item to Supabase
   async function saveItemEdit() {
-    if (!newName || !newPrice || !newCategory) {
+    if (!newName.trim() || !newPrice || !newCategory.trim()) {
       return alert("Name, price and category are required.");
     }
 
@@ -299,7 +294,6 @@ export default function AdminPage() {
         name: newName.trim(),
         price: parseFloat(newPrice),
         category: newCategory.trim(),
-        unit: newUnit.trim() || null,
         by_weight: byWeight,
         photo_url: newPhoto.trim() || null,
         description: newDesc.trim() || null
@@ -311,6 +305,32 @@ export default function AdminPage() {
     resetMenuForm();
     loadMenu();
     alert("Item updated successfully!");
+  }
+
+  async function addItem() {
+    if (!newName.trim() || !newPrice || !newCategory.trim()) {
+      return alert("Name, price and category are required.");
+    }
+
+    const { error } = await supabase.from("menu_items").insert([{
+      name: newName.trim(), 
+      price: parseFloat(newPrice), 
+      category: newCategory.trim(),
+      description: newDesc.trim() || null,
+      photo_url: newPhoto.trim() || null,
+      by_weight: byWeight,
+      in_stock: true, 
+      tenant_slug: slug
+    }]);
+
+    if (error) {
+      console.error("Error adding menu item:", error.message);
+      return alert("Failed to add menu item. Error: " + error.message);
+    }
+
+    resetMenuForm();
+    loadMenu();
+    alert("Item added successfully!");
   }
 
   async function deleteItem(id) {
@@ -511,7 +531,6 @@ export default function AdminPage() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        {/* FIXED: All React Native components replaced with safe Web tags */}
         <div style={{ flex: 1 }}>
           <h1 style={styles.headerTitle}>⚙️ {tenant?.name}</h1>
         </div>
@@ -567,7 +586,6 @@ export default function AdminPage() {
             ))}
           </div>
 
-          {/* REPLACE your entire filteredOrders mapping block with this version: */}
           {filteredOrders.length === 0 ? (
             <div style={styles.empty}><p style={{ color: '#888' }}>No orders found.</p></div>
           ) : (
@@ -628,7 +646,7 @@ export default function AdminPage() {
       )}
 
       {/* ─── MENU TAB ──────────────────────────────────────────────────────── */}
-{tab === "menu" && (
+      {tab === "menu" && (
         <div>
           {/* Dynamic Add / Edit Toggle Button */}
           <button
@@ -659,11 +677,20 @@ export default function AdminPage() {
               <label style={styles.label}>Price (₹) *</label>
               <input style={styles.input} type="number" placeholder="e.g. 180" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
               
+              {/* Type + Select Dynamic Category Input with Datalist */}
               <label style={styles.label}>Category *</label>
-              <input style={styles.input} placeholder="e.g. Starters" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
-              
-              <label style={styles.label}>Unit (e.g. 500g, 1 Plate) (optional)</label>
-              <input style={styles.input} placeholder="e.g. 500g" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
+              <input 
+                style={styles.input} 
+                placeholder="Category (e.g. Starters)" 
+                value={newCategory} 
+                onChange={e => setNewCategory(e.target.value)} 
+                list="category-list"
+              />
+              <datalist id="category-list">
+                {categories.map(cat => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
               
               <label style={styles.label}>Description (optional)</label>
               <textarea style={{ ...styles.input, height: 80, resize: "vertical" }} placeholder="Brief description..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
@@ -686,7 +713,7 @@ export default function AdminPage() {
               {items.filter(i => i.category === cat).map(item => (
                 <div key={item.id} style={menuStyles.itemCard}>
                   <div style={{ flex: 1 }}>
-                    <p style={menuStyles.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</p>
+                    <p style={menuStyles.itemName}>{item.name}</p>
                     <p style={menuStyles.itemMeta}>₹{item.price}{item.by_weight ? " / kg" : ""}{item.description ? ` · ${item.description}` : ''}</p>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -707,7 +734,6 @@ export default function AdminPage() {
                         setNewName(item.name || "");
                         setNewPrice(String(item.price || ""));
                         setNewCategory(item.category || "");
-                        setNewUnit(item.unit || "");
                         setNewPhoto(item.photo_url || "");
                         setNewDesc(item.description || "");
                         setByWeight(item.by_weight || false);
@@ -727,6 +753,7 @@ export default function AdminPage() {
           ))}
         </div>
       )}
+
       {/* ─── PAYMENTS TAB ───────────────────────────────────────────────────── */}
       {tab === "payments" && (
         <div>
@@ -748,7 +775,7 @@ export default function AdminPage() {
 
           <Toggle label="Enable Cash/Counter Payments" value={cashPaymentsEnabled} onChange={setCashPaymentsEnabled} />
           <p style={{ fontSize: 12, color: "#888", marginTop: 4, marginBottom: 20 }}>
-            Allow customers to pay at the register/counter upon collection. Disabling this forces online-only checkouts.
+            Allow customers to pay at the register upon collection. Disabling this forces online-only checkouts.
           </p>
 
           <Toggle label="Enable Online Payments" value={onlinePaymentsEnabled} onChange={setOnlinePaymentsEnabled} />
@@ -830,7 +857,7 @@ export default function AdminPage() {
           <Toggle label="Enable queue limit" desc="Pause new orders when queue is full" value={queueLimitEnabled} onChange={setQueueLimitEnabled} />
           {queueLimitEnabled && (
             <div style={{ paddingBottom: 12 }}>
-              <p style={styles.label}>Max orders in queue</p>
+              <label style={styles.label}>Max orders in queue</label>
               <input style={{ ...styles.input, width: 100 }} type="number" value={queueLimit} onChange={e => setQueueLimit(e.target.value)} />
             </div>
           )}
