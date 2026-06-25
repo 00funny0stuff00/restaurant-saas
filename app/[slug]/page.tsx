@@ -50,12 +50,16 @@ export default function RestaurantPage() {
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [selectedDeliveryOption, setSelectedDeliveryOption] = useState(null);
 
+  // Secure 2-Factor Tracking States
+  const [trackOrderId, setTrackOrderId] = useState(null); // Database primary key
+  const [trackToken, setTrackToken] = useState(""); // Token number input
+  const [trackPhone, setTrackPhone] = useState(""); // Phone verification input
+
   useEffect(() => {
     async function loadData() {
-      // SECURITY: Explicitly query only public columns.
-      // REPLACE your .select(...) block with this version (around line 50):
+      // SECURITY: Explicitly query only public columns. NEVER load razorpay_key_secret.
       const { data: tenantData } = await supabase.from("tenants")
-        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options, notes_placeholder")
         .eq("slug", slug)
         .single();
 
@@ -112,8 +116,7 @@ export default function RestaurantPage() {
     return () => { clearInterval(menuInterval); clearInterval(pageInterval); };
   }, [slug]);
 
-  // Stepper Adder: Supports regular increments (+1) & weight increments (+250g)
-  // REPLACE your addToCart and removeFromCart functions with these versions:
+  // Stepper Adder: Supports standard counts (+1) & weight counts (+250g)
   const addToCart = (item) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.name === item.name);
@@ -125,14 +128,14 @@ export default function RestaurantPage() {
         const currentQty = parseInt(existing.qty) || 0;
         return prev.map((i) => i.name === item.name ? { ...i, qty: currentQty + 1 } : i);
       }
-      const initialQty = item.by_weight ? 250 : 1;
+      const initialQty = item.by_weight ? 250 : 1; // Start at 250g for weight-based items
       return [...prev, { ...item, qty: initialQty }];
     });
   };
 
+  // Stepper Remover: Supports standard counts (-1) & weight counts (-250g)
   const removeFromCart = (itemOrName) => {
     // Dynamically resolve whether we received a string name or a full item object
-    const targetName = typeof itemOrSelf === "object" && itemOrName ? itemOrName.name : itemOrName;
     const nameToCheck = typeof itemOrName === "string" ? itemOrName : (itemOrName?.name || itemOrName);
 
     setCart((prev) => {
@@ -151,7 +154,7 @@ export default function RestaurantPage() {
     });
   };
 
-  // Manual Input Quantity / Weight Editor
+  // Keyboard Quantity Editor: Handles decimal/integer manual inputs safely
   const updateCartQty = (item, qtyString) => {
     if (qtyString === "") {
       setCart((prev) => prev.map((i) => i.name === item.name ? { ...i, qty: "" } : i));
@@ -166,7 +169,7 @@ export default function RestaurantPage() {
     }
   };
 
-  // Dynamic Math Solver: Integrates regular quantities and fractional weights
+  // Dynamic Math Solver: Automatically factors in weights and shipping options
   const deliveryCharge = (orderType === "delivery" && selectedDeliveryOption) ? selectedDeliveryOption.price : 0;
   
   const total = cart.reduce((sum, i) => {
@@ -178,16 +181,45 @@ export default function RestaurantPage() {
   }, 0) + deliveryCharge;
 
   const cartCount = cart.reduce((sum, i) => {
-    if (i.by_weight) return sum + 1; // Treat weight-based lines as 1 cart item
+    if (i.by_weight) return sum + 1; // Treat weight lines as 1 distinct item
     const qty = i.qty === "" ? 0 : parseInt(i.qty) || 0;
     return sum + qty;
   }, 0);
+
+  // Manual 2-Factor Search Handler (For Customers tracking later)
+  const handleManualTrack = async (e) => {
+    if (e) e.preventDefault();
+    if (!trackToken || !trackPhone) {
+      return alert("Please enter both your token number and phone number.");
+    }
+
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    
+    // Secure 2-Factor lookup on today's active orders
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id, phone")
+      .eq("tenant_slug", slug)
+      .eq("token_number", parseInt(trackToken))
+      .eq("phone", trackPhone.trim())
+      .gte("created_at", today)
+      .maybeSingle();
+
+    if (error || !data) {
+      return alert("No active order found matching this token and phone number for today.");
+    }
+
+    // Save verification token so they bypass the secure gate on redirect
+    localStorage.setItem("track_phone_" + data.id, data.phone);
+    window.location.href = `/${slug}/order/${data.id}`;
+  };
 
   const placeOrder = async () => {
     if (!name || !phone) return alert("Please enter your name and phone number");
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(phone)) return alert("Please enter a valid 10-digit Indian mobile number");
     if (orderType === "dine-in" && !tableNumber) return alert("Please enter your table number");
+    if (orderType === "delivery" && !deliveryAddress.trim()) return alert("Please enter your complete delivery address.");
 
     if (tenant?.queue_limit_enabled) {
       const { data: activeOrders } = await supabase.from("orders").select("id")
@@ -210,7 +242,7 @@ export default function RestaurantPage() {
 
     setProcessingPayment(true);
     
-    // SECURITY & KOT FORMATTING: Dynamic summaries for unit products vs weight products
+    // KOT FORMATTING: Dynamic summaries for unit products vs weight products
     const itemsSummary = cart.map(i => {
       if (i.by_weight) return `${i.name} (${i.qty}g)`;
       return `${i.name} x${i.qty}`;
@@ -233,12 +265,11 @@ export default function RestaurantPage() {
       return; 
     }
 
-    // SCENARIO A: Counter / Cash payments
-    // SCENARIO A: Counter Payment (Or Direct UPI verification by staff)
+    // SCENARIO A: Counter / Cash Checkout
     if (paymentMethod === "counter") {
-      // SECURE CO-BUILDER FIX: Store checkout phone & display dynamic token
-      localStorage.setItem("track_phone_" + data.id, phone);
-      setOrderNumber(data.token_number || data.id);
+      localStorage.setItem("track_phone_" + data.id, phone); // Save phone session
+      setOrderNumber(data.token_number || data.id); // Display daily token
+      setTrackOrderId(data.id); // Save unique DB ID for redirect link
       setScreen("success");
       setProcessingPayment(false);
 
@@ -263,7 +294,7 @@ export default function RestaurantPage() {
       return;
     }
 
-    // SCENARIO B: Razorpay Integrations
+    // SCENARIO B: Razorpay Checkout with Merchant's Custom Key ID
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded) {
       setProcessingPayment(false);
@@ -281,7 +312,7 @@ export default function RestaurantPage() {
 
       if (razorpayOrder.error) throw new Error(razorpayOrder.error);
 
-      // Fallback for mock checkout mode on development or empty keys
+      // Emulate successful transaction for mock mode
       if (razorpayOrder.isMock) {
         alert("🔒 Development sandbox mode. Emulating successful transaction.");
         const verifyRes = await fetch("/api/razorpay/verify", {
@@ -297,19 +328,19 @@ export default function RestaurantPage() {
         });
         const verifyResult = await verifyRes.json();
         if (verifyResult.success) {
-          // SECURE CO-BUILDER FIX: Store checkout phone & display dynamic token
-          localStorage.setItem("track_phone_" + data.id, phone);
-          setOrderNumber(data.token_number || data.id);
+          localStorage.setItem("track_phone_" + data.id, phone); // Save phone session
+          setOrderNumber(data.token_number || data.id); // Display daily token
+          setTrackOrderId(data.id); // Save unique DB ID for redirect link
           setScreen("success");
         } else {
-          alert("Mock transaction verification failed.");
+          alert("Payment verification failed.");
         }
         setProcessingPayment(false);
         return;
       }
 
       const options = {
-        key: tenant.razorpay_key_id,
+        key: tenant.razorpay_key_id, // Dynamically loaded public Key ID
         amount: Math.round(total * 100),
         currency: "INR",
         name: tenant.name,
@@ -331,17 +362,17 @@ export default function RestaurantPage() {
             const verifyResult = await verifyRes.json();
 
             if (verifyResult.success) {
-              // SECURE CO-BUILDER FIX: Store checkout phone & display dynamic token
-              localStorage.setItem("track_phone_" + data.id, phone);
-              setOrderNumber(data.token_number || data.id);
+              localStorage.setItem("track_phone_" + data.id, phone); // Save phone session
+              setOrderNumber(data.token_number || data.id); // Display daily token
+              setTrackOrderId(data.id); // Save unique DB ID for redirect link
               setScreen("success");
             } else {
               alert("Payment verification failed.");
-              await supabase.from("orders").delete().eq("id", data.id);
+              await supabase.from("orders").delete().eq("id", data.id); // Cleanup
             }
           } catch (err) {
             alert("Error verifying payment.");
-            await supabase.from("orders").delete().eq("id", data.id);
+            await supabase.from("orders").delete().eq("id", data.id); // Cleanup
           } finally {
             setProcessingPayment(false);
           }
@@ -356,6 +387,7 @@ export default function RestaurantPage() {
         modal: {
           ondismiss: async function () {
             setProcessingPayment(false);
+            // Cleanup on user dismiss
             await supabase.from("orders").delete().eq("id", data.id);
           }
         }
@@ -365,7 +397,7 @@ export default function RestaurantPage() {
       paymentWindow.open();
     } catch (err) {
       setProcessingPayment(false);
-      await supabase.from("orders").delete().eq("id", data.id);
+      await supabase.from("orders").delete().eq("id", data.id); // Cleanup
       alert("Payment gateway error. Please pay at counter or try again.");
       console.error(err);
     }
@@ -440,11 +472,14 @@ export default function RestaurantPage() {
           <p style={{ fontSize: 13, margin: "0 0 4px", opacity: 0.85 }}>Your token number</p>
           <p style={{ fontSize: 48, fontWeight: 900, margin: 0, letterSpacing: -2 }}>#{orderNumber}</p>
         </div>
-        <p style={{ fontWeight: 700, fontSize: 16, color: primary, marginBottom: 8 }}>₹{total}</p>
+        <p style={{ fontWeight: 700, fontSize: 16, color: primary, marginBottom: 8 }}>₹{total.toFixed(2)}</p>
         <p style={{ color: "#888", fontSize: 13, marginBottom: 24 }}>Show this number at the counter when your order is ready.</p>
-        <a href={`/${slug}/order/${orderNumber}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
+        
+        {/* Dynamic secure tracking URL redirect */}
+        <a href={`/${slug}/order/${trackOrderId}`} style={{ display: "block", padding: "12px 20px", background: "#f3f4f6", borderRadius: 10, color: "#111", textDecoration: "none", fontWeight: 600, fontSize: 14, marginBottom: 12 }}>
           Track your order →
         </a>
+        
         <button style={s.orderBtn} onClick={() => { setCart([]); setScreen("menu"); setName(""); setPhone(""); setTableNumber(""); setOrderType("takeaway"); setPaymentMethod(tenant.online_payments_enabled ? "online" : "counter"); setNotes(""); }}>
           Order again
         </button>
@@ -456,11 +491,28 @@ export default function RestaurantPage() {
     <div style={{ ...s.page, padding: 16 }}>
       <button style={s.backBtn} onClick={() => setScreen("menu")}>← Back to menu</button>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Track your order</h2>
-      <p style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>Enter your token number to see your order status.</p>
-      <input style={s.input} placeholder="Token number (e.g. 42)" type="number" value={trackId} onChange={e => setTrackId(e.target.value)} />
-      <button style={s.orderBtn} onClick={() => { if (!trackId) return alert("Please enter a token number"); window.location.href = `/${slug}/order/${trackId}`; }}>
-        Track →
-      </button>
+      <p style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>Enter your daily token and phone number to securely check your order status.</p>
+      
+      <form onSubmit={handleManualTrack}>
+        <input 
+          style={s.input} 
+          placeholder="Daily Token number (e.g. 4)" 
+          type="number" 
+          value={trackToken} 
+          onChange={e => setTrackToken(e.target.value)} 
+          required
+        />
+        <input 
+          style={s.input} 
+          placeholder="Phone number (e.g. 9876543210)" 
+          type="tel" 
+          value={trackPhone} 
+          onChange={e => setTrackPhone(e.target.value.replace(/\D/g, ""))} 
+          maxLength={10}
+          required
+        />
+        <button type="submit" style={s.orderBtn}>Secure Track →</button>
+      </form>
     </div>
   );
 
@@ -486,13 +538,11 @@ export default function RestaurantPage() {
           </div>
           <div style={{ textAlign: "right" }}>
             <p style={s.price}>
-              {/* Dynamic Subtotal Price math display based on unit or weight metric */}
               ₹{item.by_weight ? ((item.qty || 0) / 1000 * item.price).toFixed(2) : (item.price * item.qty)}
             </p>
             <div style={s.qtyRow}>
               <button style={s.qtyBtn} onClick={() => removeFromCart(item)}>−</button>
               
-              {/* Renders numeric input for standard items and gram-weight input for sweets/snacks */}
               {item.by_weight ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <input 
@@ -581,11 +631,10 @@ export default function RestaurantPage() {
       <input style={s.input} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
       <input style={s.input} placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
-      {/* REPLACE your customize order notes textarea with this version: */}
       {tenant.customize_order_enabled && (
         <textarea
           style={{ ...s.input, resize: "vertical", minHeight: 80, fontSize: 14 }}
-          placeholder="Special instructions or preparation requests (e.g. custom cuts, packaging preferences, no onions, extra spicy...)"
+          placeholder={tenant.notes_placeholder || "Special instructions (e.g. no onions, extra spicy, allergies...)"}
           value={notes}
           onChange={e => setNotes(e.target.value)}
         />
