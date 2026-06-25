@@ -59,7 +59,7 @@ export default function RestaurantPage() {
     async function loadData() {
       // REPLACE your .select(...) block with this version (around line 50):
       const { data: tenantData } = await supabase.from("tenants")
-        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options")
+        .select("slug, name, tagline, primary_color, secondary_color, queue_limit_enabled, queue_limit, dine_in_enabled, edit_order_enabled, customize_order_enabled, razorpay_key_id, online_payments_enabled, cash_payments_enabled, delivery_enabled, delivery_options, support_email, support_phone, physical_address")
         .eq("slug", slug)
         .single();
 
@@ -744,17 +744,26 @@ export default function RestaurantPage() {
         </button>
       )}
 
-      {/* Dynamic Local Policy Footer */}
+      {/* REPLACE your local policy footer with this compliant version */}
       <div style={{ 
         textAlign: "center", 
-        padding: "24px 16px 100px", 
+        padding: "32px 16px 100px", 
         background: "#f9f9f9", 
         borderTop: `1px solid ${secondary}`,
         fontSize: "12px",
         color: "#888",
         fontFamily: "sans-serif"
       }}>
+        {/* Dynamic Contact Card for Razorpay Audits */}
+        <div style={{ marginBottom: "20px", color: "#555", lineHeight: "1.6" }}>
+          <p style={{ fontWeight: "700", fontSize: "13px", color: "#111", margin: "0 0 6px" }}>CONTACT US</p>
+          <p style={{ margin: "0 0 4px" }}><strong>Email:</strong> {tenant.support_email || "support@echotakeout.com"}</p>
+          <p style={{ margin: "0 0 4px" }}><strong>Phone:</strong> {tenant.support_phone || "+91 XXXXXXXXXX"}</p>
+          <p style={{ margin: "0" }}><strong>Address:</strong> {tenant.physical_address || "Our Physical Location, India"}</p>
+        </div>
+
         <p>© 2026 {tenant.name}. All rights reserved.</p>
+        
         <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
           <a href={`/${slug}/privacy`} target="_blank" style={{ color: "#888", textDecoration: "none", fontWeight: "600" }}>Privacy Policy</a> · 
           <a href={`/${slug}/terms`} target="_blank" style={{ color: "#888", textDecoration: "none", fontWeight: "600" }}>Terms & Conditions</a> · 
