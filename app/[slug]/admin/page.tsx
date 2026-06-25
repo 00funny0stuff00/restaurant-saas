@@ -39,7 +39,8 @@ export default function AdminPage() {
   const [newCategory, setNewCategory] = useState("");
   const [newPhoto, setNewPhoto] = useState("");
   const [newDesc, setNewDesc] = useState("");
-
+  // Add this state to track which item is being edited:
+  const [editingItemId, setEditingItemId] = useState(null);
   // Settings
   const [queueLimitEnabled, setQueueLimitEnabled] = useState(false);
   const [queueLimit, setQueueLimit] = useState(10);
@@ -273,21 +274,43 @@ export default function AdminPage() {
     loadOrders();
   }
 
-  async function addItem() {
-    if (!newName || !newPrice || !newCategory) return alert("Name, price and category are required.");
-    await supabase.from("menu_items").insert([{
-      name: newName, 
-      price: parseFloat(newPrice), 
-      category: newCategory,
-      unit: newUnit.trim() || null,
-      by_weight: byWeight,
-      photo_url: newPhoto, 
-      description: newDesc, 
-      in_stock: true, 
-      tenant_slug: slug
-    }]);
-    setNewName(""); setNewPrice(""); setNewCategory(""); setNewPhoto(""); setNewDesc(""); setNewUnit(""); setByWeight(false);
+  // Reset all form inputs and exit edit/add modes cleanly
+  const resetMenuForm = () => {
+    setNewName("");
+    setNewPrice("");
+    setNewCategory("");
+    setNewUnit("");
+    setNewPhoto("");
+    setNewDesc("");
+    setByWeight(false);
+    setEditingItemId(null);
+    setShowAdd(false);
+  };
+
+  // Save edits of an already existing item to Supabase
+  async function saveItemEdit() {
+    if (!newName || !newPrice || !newCategory) {
+      return alert("Name, price and category are required.");
+    }
+
+    const { error } = await supabase
+      .from("menu_items")
+      .update({
+        name: newName.trim(),
+        price: parseFloat(newPrice),
+        category: newCategory.trim(),
+        unit: newUnit.trim() || null,
+        by_weight: byWeight,
+        photo_url: newPhoto.trim() || null,
+        description: newDesc.trim() || null
+      })
+      .eq("id", editingItemId);
+
+    if (error) return alert("Error saving item changes.");
+    
+    resetMenuForm();
     loadMenu();
+    alert("Item updated successfully!");
   }
 
   async function deleteItem(id) {
@@ -605,34 +628,58 @@ export default function AdminPage() {
       )}
 
       {/* ─── MENU TAB ──────────────────────────────────────────────────────── */}
-      {tab === "menu" && (
+{tab === "menu" && (
         <div>
+          {/* Dynamic Add / Edit Toggle Button */}
           <button
             style={{ ...menuStyles.addToggleBtn, borderColor: primary }}
-            onClick={() => setShowAdd(!showAdd)}
+            onClick={() => {
+              if (showAdd) {
+                resetMenuForm();
+              } else {
+                setShowAdd(true);
+              }
+            }}
           >
             <span style={{ ...menuStyles.addToggleText, color: primary }}>
               {showAdd ? "✕ Cancel" : "+ Add new item"}
             </span>
           </button>
 
+          {/* Dynamic Form: Supporting both Adding and Editing */}
           {showAdd && (
             <div style={menuStyles.addForm}>
+              <h3 style={{ fontWeight: 700, marginBottom: 12 }}>
+                {editingItemId ? "Edit item details" : "Add new item"}
+              </h3>
+              
               <label style={styles.label}>Item name *</label>
               <input style={styles.input} placeholder="e.g. Paneer Tikka" value={newName} onChange={e => setNewName(e.target.value)} />
+              
               <label style={styles.label}>Price (₹) *</label>
               <input style={styles.input} type="number" placeholder="e.g. 180" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
+              
               <label style={styles.label}>Category *</label>
               <input style={styles.input} placeholder="e.g. Starters" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+              
               <label style={styles.label}>Unit (e.g. 500g, 1 Plate) (optional)</label>
               <input style={styles.input} placeholder="e.g. 500g" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
+              
               <label style={styles.label}>Description (optional)</label>
               <textarea style={{ ...styles.input, height: 80, resize: "vertical" }} placeholder="Brief description..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
+              
               <Toggle label="Priced by Weight (Per 1 Kg)" value={byWeight} onChange={setByWeight} />
-              <button style={{ ...styles.btn(primary), width: "100%", marginTop: 12 }} onClick={addItem}>Add item</button>
+              
+              <button 
+                style={{ ...styles.btn(primary), width: "100%", marginTop: 12 }} 
+                onClick={editingItemId ? saveItemEdit : addItem}
+              >
+                {editingItemId ? "Save changes" : "Add item"}
+              </button>
             </div>
           )}
 
+          {/* Dynamic Category Grouping List */}
           {categories.map(cat => (
             <div key={cat}>
               <div style={menuStyles.catHeader}>{cat}</div>
@@ -640,7 +687,7 @@ export default function AdminPage() {
                 <div key={item.id} style={menuStyles.itemCard}>
                   <div style={{ flex: 1 }}>
                     <p style={menuStyles.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</p>
-                    <p style={menuStyles.itemMeta}>₹{item.price}{item.description ? ` · ${item.description}` : ''}</p>
+                    <p style={menuStyles.itemMeta}>₹{item.price}{item.by_weight ? " / kg" : ""}{item.description ? ` · ${item.description}` : ''}</p>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button
@@ -651,6 +698,25 @@ export default function AdminPage() {
                         {item.in_stock ? 'In stock' : 'Out'}
                       </span>
                     </button>
+                    
+                    {/* EDIT ACTION BUTTON */}
+                    <button 
+                      style={{ ...styles.btn(primary), padding: "6px 12px", fontSize: 12 }} 
+                      onClick={() => {
+                        setEditingItemId(item.id);
+                        setNewName(item.name || "");
+                        setNewPrice(String(item.price || ""));
+                        setNewCategory(item.category || "");
+                        setNewUnit(item.unit || "");
+                        setNewPhoto(item.photo_url || "");
+                        setNewDesc(item.description || "");
+                        setByWeight(item.by_weight || false);
+                        setShowAdd(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+
                     <button onClick={() => deleteItem(item.id)} style={menuStyles.deleteBtn}>
                       <span style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>✕</span>
                     </button>
@@ -661,7 +727,6 @@ export default function AdminPage() {
           ))}
         </div>
       )}
-
       {/* ─── PAYMENTS TAB ───────────────────────────────────────────────────── */}
       {tab === "payments" && (
         <div>
