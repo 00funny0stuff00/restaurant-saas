@@ -555,10 +555,10 @@ export default function AdminPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                   <span style={{ fontWeight: 700 }}>Token #{order.token_number || order.id} (ID: {order.id}) — {order.customer_name}</span>
                   <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: statusColor[order.status], color: "white" }}>{order.status.toUpperCase()}</span>
-                </div>
                   </div>
-                  <span style={{ color: '#888', fontSize: 13 }}>#{order.id}</span>
-                </div>
+                   </div>
+                    <span style={{ color: '#888', fontSize: 13 }}>#{order.id}</span>
+                  </div>
                 <p style={styles.name}>{order.customer_name}</p>
                 <p style={styles.meta}>{order.phone}</p>
                 <p style={styles.meta}>
