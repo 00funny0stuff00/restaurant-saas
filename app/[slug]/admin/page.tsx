@@ -544,38 +544,46 @@ export default function AdminPage() {
             ))}
           </div>
 
+          {/* REPLACE your entire filteredOrders mapping block with this version: */}
           {filteredOrders.length === 0 ? (
             <div style={styles.empty}><p style={{ color: '#888' }}>No orders found.</p></div>
           ) : (
             filteredOrders.map(order => (
               <div key={order.id} style={styles.card}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                {/* Top Row: Color-Coded Status Badge (Left) and Global database ID (Right) */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <div style={styles.badge(statusColor[order.status] || '#888')}>
-                    {/* REPLACE your orders loop header line inside the orders tab */}
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700 }}>Token #{order.token_number || order.id} (ID: {order.id}) — {order.customer_name}</span>
-                  <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: statusColor[order.status], color: "white" }}>{order.status.toUpperCase()}</span>
+                    <span style={styles.badgeText}>{order.status?.toUpperCase()}</span>
                   </div>
-                   </div>
-                    <span style={{ color: '#888', fontSize: 13 }}>#{order.id}</span>
-                  </div>
-                <p style={styles.name}>{order.customer_name}</p>
+                  <span style={{ color: '#888', fontSize: 13, fontWeight: "600" }}>ID: #{order.id}</span>
+                </div>
+
+                {/* Identity Row: Dynamic daily Token number and Customer Name */}
+                <p style={{ ...styles.name, fontSize: "16px", fontWeight: "700", margin: "0 0 6px" }}>
+                  Token #{order.token_number || order.id} — {order.customer_name}
+                </p>
+
                 <p style={styles.meta}>{order.phone}</p>
                 <p style={styles.meta}>
                   {order.order_type === 'dine-in' ? `🪑 Dine-in · Table ${order.table_number}` : '🥡 Takeaway'}
                 </p>
+                
                 <p style={styles.items}>{order.items}</p>
+                
                 {order.notes && (
                   <div style={styles.notesBox}>
                     <p style={styles.notesLabel}>📝 {order.notes}</p>
                   </div>
                 )}
+
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
                   <span style={{ ...styles.total, color: primary }}>₹{order.total}</span>
                   <span style={{ fontSize: 11, color: '#aaa' }}>{new Date(order.created_at).toLocaleString('en-IN')}</span>
                 </div>
+
+                {/* Order Status State Transition Triggers */}
                 {order.status !== 'done' && order.status !== 'cancelled' && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     <button
                       style={{ ...orderStyles.actionBtn, backgroundColor: statusColor[nextStatus[order.status]] || '#888', flex: 1, color: 'white', fontWeight: '700' }}
                       onClick={() => updateStatus(order.id, nextStatus[order.status])}
